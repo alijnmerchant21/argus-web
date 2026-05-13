@@ -1,0 +1,301 @@
+@import "tailwindcss" source(none);
+@source "../src";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 12px);
+  --radius-4xl: calc(var(--radius) + 16px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-bento-blue: var(--bento-blue);
+  --color-bento-green: var(--bento-green);
+  --color-bento-red: var(--bento-red);
+  --color-bento-yellow: var(--bento-yellow);
+  --font-display: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+}
+
+:root {
+  --radius: 1rem;
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.15 0 0);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.15 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.15 0 0);
+  --primary: oklch(0.15 0 0);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.97 0 0);
+  --secondary-foreground: oklch(0.15 0 0);
+  --muted: oklch(0.97 0 0);
+  --muted-foreground: oklch(0.5 0 0);
+  --accent: oklch(0.97 0 0);
+  --accent-foreground: oklch(0.15 0 0);
+  --destructive: oklch(0.6 0.22 25);
+  --destructive-foreground: oklch(1 0 0);
+  --border: oklch(0.92 0 0);
+  --input: oklch(0.92 0 0);
+  --ring: oklch(0.15 0 0);
+
+  /* Pastel bento accent palette */
+  --bento-blue: oklch(0.88 0.06 240);
+  --bento-green: oklch(0.9 0.05 160);
+  --bento-red: oklch(0.88 0.06 25);
+  --bento-yellow: oklch(0.93 0.07 95);
+}
+
+@layer base {
+  * {
+    border-color: var(--color-border);
+  }
+  body {
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  h1, h2, h3, h4 {
+    font-family: var(--font-display);
+    letter-spacing: -0.03em;
+  }
+}
+
+/* ─── Core keyframes ─────────────────────────────── */
+
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(-6px); }
+}
+
+@keyframes pop-in {
+  0%   { opacity: 0; transform: scale(0.88) translateY(10px); }
+  65%  { opacity: 1; transform: scale(1.04) translateY(-2px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+@keyframes fade-up {
+  0%   { opacity: 0; transform: translateY(16px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+/* springy bounce for buttons */
+@keyframes btn-bounce {
+  0%   { transform: scale(1); }
+  30%  { transform: scale(0.93); }
+  60%  { transform: scale(1.06); }
+  80%  { transform: scale(0.98); }
+  100% { transform: scale(1); }
+}
+
+/* wiggle for playful elements */
+@keyframes wiggle {
+  0%, 100% { transform: rotate(-2deg); }
+  50%       { transform: rotate(2deg); }
+}
+
+/* gentle bob for hero heading */
+@keyframes bob {
+  0%, 100% { transform: translateY(0); }
+  50%       { transform: translateY(-4px); }
+}
+
+/* shimmer sweep for CTAs */
+@keyframes shimmer {
+  0%   { background-position: -200% center; }
+  100% { background-position:  200% center; }
+}
+
+/* breathing glow ring on primary CTA */
+@keyframes glow-ring {
+  0%, 100% { box-shadow: 0 0 0 0px oklch(0.55 0.14 250 / 0); }
+  50%       { box-shadow: 0 0 0 6px oklch(0.55 0.14 250 / 0.18); }
+}
+
+/* aurora drift for blobs */
+@keyframes aurora-drift {
+  0%, 100% { transform: translate(0, 0) scale(1); opacity: 0.45; }
+  33%       { transform: translate(16px, -10px) scale(1.06); opacity: 0.6; }
+  66%       { transform: translate(-10px, 8px) scale(0.96); opacity: 0.38; }
+}
+
+/* card pop-in with spring overshoot */
+@keyframes card-enter {
+  0%   { opacity: 0; transform: scale(0.9) translateY(12px); }
+  60%  { opacity: 1; transform: scale(1.03) translateY(-3px); }
+  100% { opacity: 1; transform: scale(1) translateY(0); }
+}
+
+/* Utility classes */
+.animate-float    { animation: float 5s ease-in-out infinite; }
+.animate-pop-in   { animation: card-enter 0.55s cubic-bezier(0.34, 1.5, 0.64, 1) both; }
+.animate-fade-up  { animation: fade-up 0.65s cubic-bezier(0.22, 1, 0.36, 1) both; }
+.animate-bob      { animation: bob 3.5s ease-in-out infinite; }
+.animate-wiggle   { animation: wiggle 0.4s ease-in-out; }
+
+/* ─── Buttons ────────────────────────────────────── */
+
+/* Primary "Learn More" — breathing glow + gentle float */
+@media (prefers-reduced-motion: no-preference) {
+  .learn-more-btn {
+    animation: glow-ring 2.8s ease-in-out infinite;
+    transition: transform 0.15s cubic-bezier(0.34, 1.6, 0.64, 1),
+                box-shadow 0.15s ease;
+  }
+  .learn-more-btn:hover {
+    transform: translateY(-3px) scale(1.03);
+  }
+  .learn-more-btn:active {
+    animation: btn-bounce 0.38s cubic-bezier(0.34, 1.5, 0.64, 1) both;
+  }
+}
+
+/* Outline "Join Waitlist" — shimmer background */
+.waitlist-btn {
+  background-size: 200% auto;
+  transition: transform 0.15s cubic-bezier(0.34, 1.6, 0.64, 1),
+              box-shadow 0.15s ease;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .waitlist-btn:hover {
+    transform: translateY(-3px) scale(1.03);
+    box-shadow: 0 6px 20px -8px oklch(0.55 0.12 290 / 0.25);
+  }
+  .waitlist-btn:active {
+    animation: btn-bounce 0.38s cubic-bezier(0.34, 1.5, 0.64, 1) both;
+  }
+}
+
+/* "Get Started" CTA on How it works */
+@media (prefers-reduced-motion: no-preference) {
+  .hiw-cta-pulse {
+    animation: glow-ring 2.4s ease-in-out infinite;
+    transition: transform 0.15s cubic-bezier(0.34, 1.6, 0.64, 1);
+  }
+  .hiw-cta-pulse:hover {
+    transform: translateY(-3px) scale(1.04);
+  }
+  .hiw-cta-pulse:active {
+    animation: btn-bounce 0.38s cubic-bezier(0.34, 1.5, 0.64, 1) both;
+  }
+}
+
+/* Generic fun-btn class for secondary buttons */
+@media (prefers-reduced-motion: no-preference) {
+  .fun-btn {
+    transition: transform 0.15s cubic-bezier(0.34, 1.6, 0.64, 1);
+  }
+  .fun-btn:hover {
+    transform: translateY(-2px) scale(1.02);
+  }
+  .fun-btn:active {
+    animation: btn-bounce 0.35s cubic-bezier(0.34, 1.5, 0.64, 1) both;
+  }
+}
+
+/* ─── Expert bento tiles ─────────────────────────── */
+
+.expert-card-bento {
+  cursor: default;
+  transition: transform 0.2s cubic-bezier(0.34, 1.5, 0.64, 1),
+              box-shadow 0.2s ease;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .expert-card-bento:hover {
+    transform: scale(1.06) rotate(-0.5deg);
+    box-shadow: 0 14px 36px -16px oklch(0.35 0.04 260 / 0.3);
+    z-index: 1;
+  }
+  .expert-card-bento:active {
+    transform: scale(0.95);
+    transition-duration: 0.1s;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .expert-card-bento:hover { transform: none; }
+}
+
+/* ─── How-it-works step cards ────────────────────── */
+
+.hiw-step-card {
+  cursor: default;
+  transition: transform 0.25s cubic-bezier(0.34, 1.5, 0.64, 1),
+              box-shadow 0.25s ease;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .hiw-step-card:hover {
+    transform: scale(1.04) translateY(-4px);
+    box-shadow: 0 20px 48px -20px oklch(0.4 0.04 280 / 0.22);
+    z-index: 1;
+  }
+  .hiw-step-card:active {
+    transform: scale(0.97);
+    transition-duration: 0.1s;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hiw-step-card:hover { transform: none; }
+}
+
+/* sheen on card hover */
+.hiw-step-sheen {
+  background: linear-gradient(
+    115deg,
+    transparent 35%,
+    oklch(1 0 0 / 0.45) 50%,
+    transparent 65%
+  );
+  background-size: 200% 100%;
+}
+
+@keyframes sheen-sweep {
+  0%   { background-position: 200% center; }
+  100% { background-position: -200% center; }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .hiw-step-card:hover .hiw-step-sheen {
+    opacity: 1 !important;
+    animation: sheen-sweep 0.85s ease-out both;
+  }
+}
+
+/* ─── Aurora blobs ───────────────────────────────── */
+
+@media (prefers-reduced-motion: no-preference) {
+  .hiw-aurora {
+    animation: aurora-drift 18s ease-in-out infinite;
+  }
+  .hiw-aurora-delayed {
+    animation: aurora-drift 22s ease-in-out infinite;
+    animation-delay: -8s;
+  }
+}
