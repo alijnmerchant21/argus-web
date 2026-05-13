@@ -69,7 +69,7 @@ function Index() {
             style={{ animationDelay: "240ms" }}
           >
             <a
-              href="https://youtube.com"
+              href="https://youtu.be/LqSdrYfXAQQ"
               target="_blank"
               rel="noopener noreferrer"
               className="fun-btn inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
