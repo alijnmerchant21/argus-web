@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -11,6 +11,7 @@ import {
   DialogTrigger,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { joinWaitlist } from "@/lib/waitlist";
 
 type WaitlistDialogProps = {
   /** When set, the dialog is controlled by the parent (no trigger rendered). */
@@ -26,17 +27,28 @@ export function WaitlistDialog({ open: controlledOpen, onOpenChange, children }:
   const setOpen = onOpenChange ?? setUncontrolledOpen;
 
   const [email, setEmail] = useState("");
+  const [loading, setLoading] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const submit = (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email) return;
-    setSubmitted(true);
-    setTimeout(() => {
-      setOpen(false);
-      setSubmitted(false);
-      setEmail("");
-    }, 1500);
+    if (!email || loading) return;
+    setLoading(true);
+    setError(null);
+    try {
+      await joinWaitlist({ data: { email } });
+      setSubmitted(true);
+      setTimeout(() => {
+        setOpen(false);
+        setSubmitted(false);
+        setEmail("");
+      }, 2000);
+    } catch {
+      setError("Something went wrong. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -61,10 +73,20 @@ export function WaitlistDialog({ open: controlledOpen, onOpenChange, children }:
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="h-11 rounded-xl"
+              disabled={loading}
             />
+            {error && <p className="text-sm text-destructive">{error}</p>}
             <DialogFooter>
-              <Button type="submit" className="h-11 w-full rounded-full bg-foreground text-background hover:bg-foreground/90">
-                Reserve my spot <ArrowRight className="h-4 w-4" />
+              <Button
+                type="submit"
+                disabled={loading}
+                className="h-11 w-full rounded-full bg-foreground text-background hover:bg-foreground/90"
+              >
+                {loading ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <>Reserve my spot <ArrowRight className="h-4 w-4" /></>
+                )}
               </Button>
             </DialogFooter>
           </form>
