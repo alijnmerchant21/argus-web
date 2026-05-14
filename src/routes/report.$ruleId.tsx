@@ -1,8 +1,13 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, redirect } from "@tanstack/react-router";
 import { ArrowLeft, BarChart3, LineChart, Shield } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { getSessionFn } from "@/lib/auth";
 
 export const Route = createFileRoute("/report/$ruleId")({
+  beforeLoad: async () => {
+    const session = await getSessionFn();
+    if (!session) throw redirect({ to: "/login" });
+  },
   head: ({ params }) => ({
     meta: [
       { title: `Report — ${params.ruleId.slice(0, 8)}… — Argus` },

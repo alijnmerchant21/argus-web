@@ -25,7 +25,7 @@ export function TopNav() {
           </Link>
         </div>
         <Link
-          to="/dashboard"
+          to="/login"
           className="inline-flex h-10 shrink-0 items-center rounded-full border border-border bg-background px-4 text-sm font-semibold shadow-sm transition-colors hover:bg-secondary sm:h-11 sm:px-5"
         >
           Login

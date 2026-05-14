@@ -1,41 +1,28 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { Plus, FileText, BarChart3 } from "lucide-react";
+import { useCallback, useMemo, useState } from "react";
+import { createFileRoute, Link, redirect, useNavigate, useRouter } from "@tanstack/react-router";
+import { Plus, FileText, BarChart3, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
-
-const STORAGE_KEY = "argus-dashboard-rules-v1";
-
-export type Rule = {
-  id: string;
-  title: string;
-  body: string;
-  severity: string;
-  updatedAt: number;
-};
-
-function loadRules(): Rule[] {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw) as unknown;
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter((r): r is Rule => r && typeof r === "object" && typeof (r as Rule).id === "string");
-  } catch {
-    return [];
-  }
-}
-
-function saveRules(rules: Rule[]) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(rules));
-}
+import { getSessionFn, logoutFn } from "@/lib/auth";
+import { getRulesFn, saveRuleFn, deleteRuleFn, type Rule } from "@/lib/rules";
 
 export const Route = createFileRoute("/dashboard")({
+  beforeLoad: async () => {
+    const session = await getSessionFn();
+    if (!session) throw redirect({ to: "/login" });
+    return { session };
+  },
+  loader: async () => {
+    try {
+      return await getRulesFn();
+    } catch {
+      return [] as Rule[];
+    }
+  },
   head: () => ({
     meta: [{ title: "Dashboard — Argus" }, { name: "description", content: "Define and manage Argus rules." }],
   }),
@@ -43,25 +30,21 @@ export const Route = createFileRoute("/dashboard")({
 });
 
 function DashboardPage() {
+  const router = useRouter();
   const navigate = useNavigate();
-  const [rules, setRules] = useState<Rule[]>([]);
-  const [hydrated, setHydrated] = useState(false);
+  const { session } = Route.useRouteContext();
+  const initialRules = Route.useLoaderData();
+
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [isNew, setIsNew] = useState(false);
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
   const [severity, setSeverity] = useState("medium");
   const [readOnly, setReadOnly] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
-  useEffect(() => {
-    setRules(loadRules());
-    setHydrated(true);
-  }, []);
-
-  const persist = useCallback((next: Rule[]) => {
-    setRules(next);
-    saveRules(next);
-  }, []);
+  const rules = initialRules;
 
   const selected = useMemo(() => rules.find((r) => r.id === selectedId) ?? null, [rules, selectedId]);
 
@@ -76,7 +59,6 @@ function DashboardPage() {
     setSelectedId(null);
     setIsNew(true);
     resetForm();
-    setReadOnly(false);
   };
 
   const selectRule = (id: string) => {
@@ -90,38 +72,44 @@ function DashboardPage() {
     setReadOnly(true);
   };
 
-  const saveRule = () => {
+  const saveRule = async () => {
     const trimmedTitle = title.trim();
     const trimmedBody = body.trim();
-    if (!trimmedTitle || !trimmedBody) return;
-
-    const now = Date.now();
-    if (isNew || !selectedId) {
-      const id = crypto.randomUUID();
-      const next: Rule = { id, title: trimmedTitle, body: trimmedBody, severity, updatedAt: now };
-      persist([next, ...rules]);
-      setSelectedId(id);
+    if (!trimmedTitle || !trimmedBody || saving) return;
+    setSaving(true);
+    try {
+      const result = await saveRuleFn({
+        data: { id: isNew ? undefined : selectedId ?? undefined, title: trimmedTitle, body: trimmedBody, severity },
+      });
+      setSelectedId(result.id);
       setIsNew(false);
       setReadOnly(true);
-      return;
+      await router.invalidate();
+    } finally {
+      setSaving(false);
     }
+  };
 
-    const next = rules.map((r) =>
-      r.id === selectedId ? { ...r, title: trimmedTitle, body: trimmedBody, severity, updatedAt: now } : r,
-    );
-    persist(next);
-    setReadOnly(true);
+  const deleteRule = async () => {
+    if (!selectedId || deleting) return;
+    setDeleting(true);
+    try {
+      await deleteRuleFn({ data: { id: selectedId } });
+      setSelectedId(null);
+      setIsNew(false);
+      resetForm();
+      await router.invalidate();
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    await logoutFn();
+    await router.navigate({ to: "/login" });
   };
 
   const showRuleActions = selectedId && !isNew;
-
-  if (!hydrated) {
-    return (
-      <main className="mx-auto flex min-h-[50vh] w-[min(1200px,calc(100%-2rem))] items-center justify-center text-muted-foreground">
-        Loading…
-      </main>
-    );
-  }
 
   return (
     <main className="mx-auto flex min-h-[calc(100dvh-8rem)] w-[min(1200px,calc(100%-2rem))] flex-col gap-6 pb-16 pt-6 md:flex-row md:gap-0 md:pt-8">
@@ -139,7 +127,7 @@ function DashboardPage() {
             <Plus className="h-4 w-4" />
           </Button>
         </div>
-        <ScrollArea className="h-[min(420px,40vh)] md:h-[min(calc(100dvh-12rem),560px)]">
+        <ScrollArea className="h-[min(420px,40vh)] md:h-[min(calc(100dvh-16rem),560px)]">
           <ul className="space-y-1.5 pr-3">
             {rules.length === 0 ? (
               <li className="rounded-xl border border-dashed border-border px-3 py-6 text-center text-sm text-muted-foreground">
@@ -165,6 +153,19 @@ function DashboardPage() {
             )}
           </ul>
         </ScrollArea>
+
+        <div className="mt-auto pt-4 border-t border-border">
+          <p className="mb-2 text-xs text-muted-foreground">Signed in as <strong>{session.username}</strong></p>
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            className="w-full justify-start gap-2 rounded-xl text-muted-foreground hover:text-foreground"
+            onClick={handleLogout}
+          >
+            <LogOut className="h-4 w-4" /> Sign out
+          </Button>
+        </div>
       </aside>
 
       <section className="min-h-[320px] flex-1 md:pl-6">
@@ -222,13 +223,23 @@ function DashboardPage() {
 
             {(!readOnly || isNew) && (
               <div className="mt-8 flex flex-wrap gap-3">
-                <Button type="button" className="rounded-full" onClick={saveRule}>
-                  {isNew ? "Save rule" : "Save changes"}
+                <Button type="button" className="rounded-full" onClick={saveRule} disabled={saving}>
+                  {saving ? "Saving…" : isNew ? "Save rule" : "Save changes"}
                 </Button>
+                {!isNew && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="rounded-full text-muted-foreground"
+                    onClick={() => { setReadOnly(true); }}
+                  >
+                    Cancel
+                  </Button>
+                )}
               </div>
             )}
 
-            {showRuleActions ? (
+            {showRuleActions && (
               <div className="mt-6 flex flex-wrap gap-3 border-t border-border pt-6">
                 <Button type="button" variant="outline" className="rounded-full" onClick={() => setReadOnly(false)}>
                   Edit rule
@@ -242,8 +253,17 @@ function DashboardPage() {
                   <BarChart3 className="h-4 w-4" />
                   See report
                 </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  className="rounded-full text-destructive hover:text-destructive ml-auto"
+                  onClick={deleteRule}
+                  disabled={deleting}
+                >
+                  {deleting ? "Deleting…" : "Delete"}
+                </Button>
               </div>
-            ) : null}
+            )}
 
             <p className="mt-8 text-center text-sm text-muted-foreground">
               <Link to="/" className="font-medium text-foreground underline-offset-4 hover:underline">
