@@ -19,6 +19,11 @@ dist-ssr
 # Vercel build output
 .vercel/output/
 
+# Environment variables — never commit these
+.env
+.env.local
+.env.production
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
