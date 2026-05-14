@@ -1,6 +1,19 @@
-import { Link } from "@tanstack/react-router";
+import { Link, useRouter } from "@tanstack/react-router";
+import { logoutFn, type SessionUser } from "@/lib/auth";
 
-export function TopNav() {
+type TopNavProps = {
+  session: SessionUser | null;
+};
+
+export function TopNav({ session }: TopNavProps) {
+  const router = useRouter();
+
+  const handleLogout = async () => {
+    await logoutFn();
+    await router.invalidate();
+    await router.navigate({ to: "/login" });
+  };
+
   return (
     <header className="w-full">
       <nav className="mx-auto flex w-[min(1200px,calc(100%-2rem))] items-center justify-between gap-4 py-5 sm:py-6">
@@ -17,19 +30,24 @@ export function TopNav() {
               height={42}
             />
           </Link>
-          <Link
-            to="/how-it-works"
-            className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
-          >
-            How it works
-          </Link>
         </div>
-        <Link
-          to="/login"
-          className="inline-flex h-10 shrink-0 items-center rounded-full border border-border bg-background px-4 text-sm font-semibold shadow-sm transition-colors hover:bg-secondary sm:h-11 sm:px-5"
-        >
-          Login
-        </Link>
+
+        {session ? (
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="inline-flex h-10 shrink-0 items-center rounded-full border border-border bg-background px-4 text-sm font-semibold shadow-sm transition-colors hover:bg-secondary sm:h-11 sm:px-5"
+          >
+            Sign out
+          </button>
+        ) : (
+          <Link
+            to="/login"
+            className="inline-flex h-10 shrink-0 items-center rounded-full border border-border bg-background px-4 text-sm font-semibold shadow-sm transition-colors hover:bg-secondary sm:h-11 sm:px-5"
+          >
+            Login
+          </Link>
+        )}
       </nav>
     </header>
   );

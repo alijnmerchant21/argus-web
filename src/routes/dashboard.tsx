@@ -1,13 +1,13 @@
 import { useCallback, useMemo, useState } from "react";
 import { createFileRoute, Link, redirect, useNavigate, useRouter } from "@tanstack/react-router";
-import { Plus, FileText, BarChart3, LogOut } from "lucide-react";
+import { Plus, FileText, BarChart3 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
-import { getSessionFn, logoutFn } from "@/lib/auth";
+import { getSessionFn } from "@/lib/auth";
 import { getRulesFn, saveRuleFn, deleteRuleFn, type Rule } from "@/lib/rules";
 
 export const Route = createFileRoute("/dashboard")({
@@ -17,11 +17,7 @@ export const Route = createFileRoute("/dashboard")({
     return { session };
   },
   loader: async () => {
-    try {
-      return await getRulesFn();
-    } catch {
-      return [] as Rule[];
-    }
+    return await getRulesFn();
   },
   head: () => ({
     meta: [{ title: "Dashboard — Argus" }, { name: "description", content: "Define and manage Argus rules." }],
@@ -32,7 +28,6 @@ export const Route = createFileRoute("/dashboard")({
 function DashboardPage() {
   const router = useRouter();
   const navigate = useNavigate();
-  const { session } = Route.useRouteContext();
   const initialRules = Route.useLoaderData();
 
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -104,11 +99,6 @@ function DashboardPage() {
     }
   };
 
-  const handleLogout = async () => {
-    await logoutFn();
-    await router.navigate({ to: "/login" });
-  };
-
   const showRuleActions = selectedId && !isNew;
 
   return (
@@ -154,18 +144,6 @@ function DashboardPage() {
           </ul>
         </ScrollArea>
 
-        <div className="mt-auto pt-4 border-t border-border">
-          <p className="mb-2 text-xs text-muted-foreground">Signed in as <strong>{session.username}</strong></p>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            className="w-full justify-start gap-2 rounded-xl text-muted-foreground hover:text-foreground"
-            onClick={handleLogout}
-          >
-            <LogOut className="h-4 w-4" /> Sign out
-          </Button>
-        </div>
       </aside>
 
       <section className="min-h-[320px] flex-1 md:pl-6">
