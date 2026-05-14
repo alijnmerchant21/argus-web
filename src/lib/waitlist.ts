@@ -4,7 +4,7 @@ import { z } from "zod";
 const schema = z.object({ email: z.string().email() });
 
 export const joinWaitlist = createServerFn({ method: "POST" })
-  .validator(schema)
+  .inputValidator(schema)
   .handler(async ({ data }) => {
     const apiKey = process.env["EMAILOCTOPUS_API_KEY"];
     const listId = process.env["EMAILOCTOPUS_LIST_ID"];

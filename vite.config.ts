@@ -11,7 +11,6 @@ export default defineConfig({
     tsconfigPaths({ projects: ["./tsconfig.json"] }),
     tanstackStart({
       server: {
-        entry: "server",
         preset: "vercel",
       },
     }),
