@@ -65,7 +65,7 @@ function Index() {
           </div>
           <WaitlistDialog open={waitlistOpen} onOpenChange={setWaitlistOpen} />
           <div
-            className="animate-fade-up mt-4"
+            className="animate-fade-up mt-4 flex flex-wrap items-center gap-x-5 gap-y-2"
             style={{ animationDelay: "240ms" }}
           >
             <a
@@ -75,6 +75,12 @@ function Index() {
               className="fun-btn inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
             >
               <Play className="h-4 w-4 shrink-0" /> Founder&apos;s note
+            </a>
+            <a
+              href="mailto:hello@argus-agent.xyz"
+              className="fun-btn inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+            >
+              ✉️ Reach out
             </a>
           </div>
         </section>

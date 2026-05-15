@@ -24,16 +24,19 @@ const labelSize: Record<NonNullable<Props["size"]>, string> = {
 export function ExpertCard({ label, symbol, pastel, className = "", delay = 0, size = "md" }: Props) {
   return (
     <div
-      className={`expert-card-bento animate-pop-in group relative flex flex-col justify-between overflow-hidden rounded-2xl border border-black/[0.06] px-4 py-4 shadow-sm sm:px-5 sm:py-5 ${pastel} ${className}`}
+      className={`expert-card-bento animate-pop-in group relative flex flex-col justify-between rounded-2xl border border-black/[0.06] px-4 py-4 shadow-sm sm:px-5 sm:py-5 ${pastel} ${className}`}
       style={{ animationDelay: `${delay}ms` }}
       tabIndex={0}
     >
-      {/* emoji — spins + bounces on hover */}
-      <span
-        className={`inline-block select-none leading-none transition-transform duration-300 motion-safe:group-hover:scale-125 motion-safe:group-hover:-rotate-6 motion-safe:group-active:scale-95 ${emojiSize[size]}`}
-        aria-hidden
-      >
-        {symbol}
+      {/* emoji — padding wrapper keeps it away from the card edge so scale+rotate never clips */}
+      <span className="p-1">
+        <span
+          className={`inline-block select-none leading-none transition-transform duration-300 motion-safe:group-hover:scale-125 motion-safe:group-hover:-rotate-6 motion-safe:group-active:scale-95 ${emojiSize[size]}`}
+          aria-hidden
+          style={{ transformOrigin: "center center" }}
+        >
+          {symbol}
+        </span>
       </span>
 
       {/* label — clamped so it never overflows */}
