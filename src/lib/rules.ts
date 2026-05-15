@@ -5,7 +5,7 @@ import { z } from "zod";
 
 function getDb() {
   const url = process.env["DATABASE_URL"];
-  if (!url) throw new Error("DATABASE_URL is not set. Add it to your environment variables.");
+  if (!url) throw new Error("DATABASE_URL is not set.");
   return neon(url);
 }
 
@@ -23,51 +23,101 @@ async function getCurrentUserId(): Promise<string> {
   return userId;
 }
 
-export type Rule = {
+export type RuleAction   = "block" | "warn" | "flag";
+export type RuleSeverity = "low" | "medium" | "high";
+export type RuleScope    = "input" | "output" | "both";
+export type MatchLogic   = "any" | "all";
+
+/** Raw DB row */
+type RuleRow = {
   id: string;
-  title: string;
-  body: string;
-  severity: string;
-  updated_at: number;
   user_id: string;
+  title: string;
+  action: RuleAction;
+  keywords: string;
+  body: string;
+  severity: RuleSeverity;
+  platforms: string;
+  scope: RuleScope;
+  match_logic: MatchLogic;
+  domain: string;
+  active: number;
+  notes: string;
+  updated_at: number;
 };
+
+/** Parsed view for the UI */
+export type RuleView = Omit<RuleRow, "keywords" | "platforms" | "active"> & {
+  keywords: string[];
+  platforms: string[];
+  active: boolean;
+};
+
+function toView(r: RuleRow): RuleView {
+  let keywords: string[] = [];
+  let platforms: string[] = ["chatgpt", "claude"];
+  try { keywords = JSON.parse(r.keywords); } catch { /**/ }
+  try { platforms = JSON.parse(r.platforms); } catch { /**/ }
+  return { ...r, keywords, platforms, active: r.active !== 0 };
+}
+
+// ── Server functions ──────────────────────────────────────────────────────────
 
 export const getRulesFn = createServerFn({ method: "GET" }).handler(async () => {
   const [sql, userId] = await Promise.all([Promise.resolve(getDb()), getCurrentUserId()]);
   const rows = await sql`
-    SELECT id, title, body, severity, updated_at, user_id
+    SELECT id, user_id, title, action, keywords, body, severity,
+           platforms, scope, match_logic, domain, active, notes, updated_at
     FROM rules
     WHERE user_id = ${userId}
     ORDER BY updated_at DESC
   `;
-  return rows as Rule[];
+  return (rows as RuleRow[]).map(toView);
+});
+
+const ruleInput = z.object({
+  id:          z.string().optional(),
+  title:       z.string().min(1),
+  action:      z.enum(["block", "warn", "flag"]),
+  keywords:    z.array(z.string()),
+  body:        z.string(),
+  severity:    z.enum(["low", "medium", "high"]),
+  platforms:   z.array(z.string()),
+  scope:       z.enum(["input", "output", "both"]),
+  match_logic: z.enum(["any", "all"]),
+  domain:      z.string(),
+  active:      z.boolean(),
+  notes:       z.string(),
 });
 
 export const saveRuleFn = createServerFn({ method: "POST" })
-  .inputValidator(
-    z.object({
-      id: z.string().optional(),
-      title: z.string().min(1),
-      body: z.string().min(1),
-      severity: z.string().min(1),
-    }),
-  )
+  .inputValidator(ruleInput)
   .handler(async ({ data }) => {
     const [sql, userId] = await Promise.all([Promise.resolve(getDb()), getCurrentUserId()]);
     const now = Date.now();
+    const kw  = JSON.stringify(data.keywords);
+    const pf  = JSON.stringify(data.platforms);
+    const act = data.active ? 1 : 0;
 
     if (data.id) {
       await sql`
-        UPDATE rules
-        SET title = ${data.title}, body = ${data.body}, severity = ${data.severity}, updated_at = ${now}
+        UPDATE rules SET
+          title = ${data.title}, action = ${data.action}, keywords = ${kw},
+          body = ${data.body}, severity = ${data.severity}, platforms = ${pf},
+          scope = ${data.scope}, match_logic = ${data.match_logic},
+          domain = ${data.domain}, active = ${act}, notes = ${data.notes},
+          updated_at = ${now}
         WHERE id = ${data.id} AND user_id = ${userId}
       `;
       return { id: data.id };
     }
 
     const rows = await sql`
-      INSERT INTO rules (title, body, severity, updated_at, user_id)
-      VALUES (${data.title}, ${data.body}, ${data.severity}, ${now}, ${userId})
+      INSERT INTO rules
+        (user_id, title, action, keywords, body, severity, platforms, scope, match_logic, domain, active, notes, updated_at)
+      VALUES
+        (${userId}, ${data.title}, ${data.action}, ${kw}, ${data.body}, ${data.severity},
+         ${pf}, ${data.scope}, ${data.match_logic}, ${data.domain}, ${act}, ${data.notes}, ${now})
       RETURNING id
     `;
     return { id: (rows[0] as { id: string }).id };
