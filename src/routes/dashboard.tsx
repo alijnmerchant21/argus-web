@@ -411,8 +411,10 @@ function DashboardPage() {
                                 type="button"
                                 onClick={() => selectRule(r)}
                                 className={cn(
-                                  "group flex w-full items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left text-sm transition-all",
-                                  selectedId === r.id ? "border-foreground bg-secondary font-semibold" : "border-transparent bg-muted/40 hover:bg-muted",
+                                  "group flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-sm transition-all",
+                                  selectedId === r.id
+                                    ? "bg-slate-100 font-semibold text-foreground"
+                                    : "text-muted-foreground hover:bg-muted hover:text-foreground",
                                   !r.active && "opacity-40",
                                 )}
                               >
