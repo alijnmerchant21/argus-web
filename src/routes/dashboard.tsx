@@ -1,9 +1,10 @@
-import { useCallback, useMemo, useState, useRef } from "react";
+import { useMemo, useState, useRef, useEffect } from "react";
 import { createFileRoute, Link, redirect, useNavigate, useRouter } from "@tanstack/react-router";
 import {
   Plus, FileText, BarChart3, X, Download,
   ShieldBan, AlertTriangle, Flag, Loader2,
   Stethoscope, Scale, GraduationCap, FlaskConical, Landmark, Sparkles,
+  Key, Copy, Check, RefreshCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,6 +19,8 @@ import {
   getRulesFn, saveRuleFn, deleteRuleFn,
   type RuleView, type RuleAction, type RuleSeverity, type RuleScope, type MatchLogic,
 } from "@/lib/rules";
+import { getApiKeyFn, regenerateApiKeyFn } from "@/lib/api-key";
+import { generateExtensionFn } from "@/lib/generate-extension";
 
 export const Route = createFileRoute("/dashboard")({
   beforeLoad: async () => {
@@ -270,6 +273,71 @@ function fromTemplate(t: Template): FormState {
     scope: t.scope, match_logic: t.match_logic,
     domain: t.domain, active: true, notes: t.notes,
   };
+}
+
+// ── API key panel ─────────────────────────────────────────────────────────────
+
+function ApiKeyPanel() {
+  const [apiKey,      setApiKey]      = useState<string | null>(null);
+  const [loading,     setLoading]     = useState(true);
+  const [generating,  setGenerating]  = useState(false);
+  const [copied,      setCopied]      = useState(false);
+
+  useEffect(() => {
+    getApiKeyFn().then((res) => { setApiKey(res.api_key); setLoading(false); });
+  }, []);
+
+  const generate = async () => {
+    setGenerating(true);
+    const res = await regenerateApiKeyFn();
+    setApiKey(res.api_key);
+    setGenerating(false);
+  };
+
+  const copy = () => {
+    if (!apiKey) return;
+    navigator.clipboard.writeText(apiKey);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  return (
+    <div className="mt-6 rounded-2xl border border-border bg-card p-5 shadow-sm">
+      <div className="flex items-center gap-2 mb-3">
+        <Key className="h-4 w-4 text-muted-foreground" />
+        <p className="text-sm font-semibold">Connect Chrome Extension</p>
+      </div>
+
+      {loading ? (
+        <div className="h-10 animate-pulse rounded-xl bg-muted" />
+      ) : apiKey ? (
+        <div className="space-y-2">
+          <div className="flex items-center gap-2">
+            <code className="flex-1 truncate rounded-xl border border-border bg-muted px-3 py-2 font-mono text-xs text-muted-foreground">
+              {apiKey}
+            </code>
+            <Button type="button" size="icon" variant="outline" className="h-9 w-9 shrink-0 rounded-xl" onClick={copy} title="Copy key">
+              {copied ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}
+            </Button>
+            <Button type="button" size="icon" variant="outline" className="h-9 w-9 shrink-0 rounded-xl" onClick={generate} disabled={generating} title="Regenerate key">
+              <RefreshCw className={cn("h-4 w-4", generating && "animate-spin")} />
+            </Button>
+          </div>
+          <p className="text-[11px] text-muted-foreground">
+            Paste this into the Argus extension popup. Keep it secret — it grants read access to your rules.
+          </p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          <p className="text-sm text-muted-foreground">No API key yet. Generate one to connect the extension.</p>
+          <Button type="button" size="sm" variant="outline" className="rounded-full gap-2" onClick={generate} disabled={generating}>
+            {generating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Key className="h-3.5 w-3.5" />}
+            Generate key
+          </Button>
+        </div>
+      )}
+    </div>
+  );
 }
 
 // ── main page ─────────────────────────────────────────────────────────────────
@@ -675,19 +743,10 @@ function DashboardPage() {
       </div>
 
       {/* ── Generate Extension ── */}
-      <div className="mt-8 flex flex-col items-start justify-between gap-4 rounded-2xl border border-dashed border-slate-300 bg-slate-50/80 p-5 sm:flex-row sm:items-center">
-        <div>
-          <p className="text-sm font-semibold text-slate-700">Generate Extension Package</p>
-          <p className="mt-0.5 text-xs text-slate-500">
-            {activeCount > 0
-              ? `${activeCount} active rule${activeCount !== 1 ? "s" : ""} will be bundled into one Chrome extension. You can also download individual rules from each rule's actions.`
-              : "Save at least one active rule, then bundle all your rules into one Chrome extension."}
-          </p>
-        </div>
-        <Button type="button" disabled variant="outline" className="h-10 shrink-0 gap-2 rounded-full border-slate-300 text-sm font-semibold opacity-60">
-          <Download className="h-4 w-4" /> Download .zip — coming soon
-        </Button>
-      </div>
+      <GenerateExtensionBar activeCount={activeCount} />
+
+      {/* API key */}
+      <ApiKeyPanel />
 
       {/* Template picker */}
       <TemplatePicker
