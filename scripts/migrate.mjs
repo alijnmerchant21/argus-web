@@ -60,6 +60,34 @@ async function run() {
   await sql`CREATE INDEX IF NOT EXISTS rules_user_id_idx ON rules(user_id)`;
   console.log("✓ index ready");
 
+  // Phase 3: api_keys + logs tables
+  await sql`
+    CREATE TABLE IF NOT EXISTS api_keys (
+      username   TEXT   PRIMARY KEY,
+      api_key    TEXT   NOT NULL UNIQUE,
+      created_at BIGINT NOT NULL
+    )
+  `;
+  console.log("✓ api_keys table ready");
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS logs (
+      id           TEXT   PRIMARY KEY DEFAULT gen_random_uuid()::text,
+      api_key      TEXT   NOT NULL,
+      rule_id      TEXT   NOT NULL,
+      rule_title   TEXT   NOT NULL DEFAULT '',
+      action       TEXT   NOT NULL,
+      matched_kw   TEXT   NOT NULL DEFAULT '',
+      platform     TEXT   NOT NULL DEFAULT '',
+      prompt_text  TEXT   NOT NULL DEFAULT '',
+      created_at   BIGINT NOT NULL
+    )
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS logs_api_key_idx    ON logs(api_key)`;
+  await sql`CREATE INDEX IF NOT EXISTS logs_rule_id_idx    ON logs(rule_id)`;
+  await sql`CREATE INDEX IF NOT EXISTS logs_created_at_idx ON logs(created_at DESC)`;
+  console.log("✓ logs table + indexes ready");
+
   console.log("\n✅ Migration complete.");
 }
 
