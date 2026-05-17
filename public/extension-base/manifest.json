@@ -19,7 +19,7 @@
   "content_scripts": [
     {
       "js": [
-        "assets/index.ts-Km55ZLje.js"
+        "assets/index.ts-D6CxKAZO.js"
       ],
       "matches": [
         "<all_urls>"
@@ -52,7 +52,7 @@
         "rules.json",
         "argus-logo.png",
         "argus-main-world.js",
-        "assets/index.ts-Km55ZLje.js"
+        "assets/index.ts-D6CxKAZO.js"
       ],
       "use_dynamic_url": false
     }

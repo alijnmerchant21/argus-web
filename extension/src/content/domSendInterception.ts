@@ -1,19 +1,19 @@
 /**
- * DOM-level send interception (argus1-style): capture submit / Enter / send click.
- * Works when network fetch/XHR hooks miss (CSP, workers, opaque clients, etc.).
+ * DOM-level send interception (argus1-style).
+ * Fixes: Shadow DOM (composedPath), visible composer (no offsetParent), rule shape coercion, eager storage hydrate.
  */
 import { evaluateInputRules } from "../shared/ruleEvaluation";
+import { normalizeRulesFromStorage } from "../shared/normalizeRules";
 import type { Rule, RuleAction } from "../shared/types";
 
 const KEYS = { rules: "argus_rules", enabled: "argus_enabled" } as const;
 
 let guardRules: Rule[] = [];
 let guardEnabled = true;
-/** Next send is allowed through after a successful "warn → proceed". */
 let bypassOnce = false;
 
 export function setDomGuardState(rules: Rule[], enabled: boolean): void {
-  guardRules = rules;
+  guardRules = normalizeRulesFromStorage(rules);
   guardEnabled = enabled;
 }
 
@@ -26,37 +26,122 @@ function platformFromHost(): string {
 }
 
 function queueDomLog(rule: Rule, action: RuleAction, prompt: string, matchedKw: string): void {
-  void chrome.runtime.sendMessage({
-    action: "queueLog",
-    entry: {
-      rule_id: rule.id,
-      rule_title: rule.title,
-      action,
-      matched_kw: matchedKw,
-      platform: platformFromHost(),
-      prompt_text: prompt.slice(0, 20000),
-      created_at: Date.now(),
-    },
-  });
+  const ruleId = String(rule.id ?? "").trim();
+  if (!ruleId) {
+    console.warn("[Argus] Skipping log: rule has empty id");
+    return;
+  }
+  void chrome.runtime
+    .sendMessage({
+      action: "queueLog",
+      entry: {
+        rule_id: ruleId,
+        rule_title: rule.title,
+        action,
+        matched_kw: matchedKw,
+        platform: platformFromHost(),
+        prompt_text: prompt.slice(0, 20000),
+        created_at: Date.now(),
+      },
+    })
+    .catch(() => {});
+}
+
+/** Many modern UIs use flex/grid where offsetParent is null even when visible. */
+function elementLooksUsable(el: Element): boolean {
+  if (!(el instanceof HTMLElement)) return false;
+  if (typeof el.checkVisibility === "function") {
+    try {
+      return el.checkVisibility({ checkOpacity: true, checkSize: true });
+    } catch {
+      /* fall through */
+    }
+  }
+  const r = el.getBoundingClientRect();
+  if (r.width < 2 || r.height < 2) return false;
+  const st = window.getComputedStyle(el);
+  if (st.visibility === "hidden" || st.display === "none") return false;
+  return true;
 }
 
 interface ComposerRef {
+  el: HTMLElement;
   getText: () => string;
 }
 
-function composerFromTarget(target: EventTarget | null): ComposerRef | null {
+function composerFromNode(n: Node | null): ComposerRef | null {
+  if (n instanceof HTMLTextAreaElement) {
+    return {
+      el: n,
+      getText: () => n.value,
+    };
+  }
+  if (n instanceof HTMLElement && n.isContentEditable) {
+    const h = n;
+    return {
+      el: h,
+      getText: () => (h.innerText || h.textContent || "").trim(),
+    };
+  }
+  return null;
+}
+
+/** Walk event path (includes nodes inside open shadow roots). */
+function composerFromComposedPath(ev: Event): ComposerRef | null {
+  const path = typeof ev.composedPath === "function" ? ev.composedPath() : [];
+  for (const n of path) {
+    const c = composerFromNode(n as Node);
+    if (c) return c;
+  }
+  return null;
+}
+
+function composerFromTargetBubbles(target: EventTarget | null): ComposerRef | null {
   if (!(target instanceof Node)) return null;
   let el: Node | null = target instanceof Element ? target : null;
   if (target instanceof Text) el = target.parentElement;
   while (el) {
+    const c = composerFromNode(el);
+    if (c) return c;
+    el = el.parentElement;
+  }
+  return null;
+}
+
+function queryShadowAll(root: Document | ShadowRoot, selector: string): Element[] {
+  const out: Element[] = [];
+  try {
+    root.querySelectorAll(selector).forEach((e) => out.push(e));
+    root.querySelectorAll("*").forEach((host) => {
+      if (host instanceof Element && host.shadowRoot) {
+        out.push(...queryShadowAll(host.shadowRoot, selector));
+      }
+    });
+  } catch {
+    /* ignore */
+  }
+  return out;
+}
+
+function pickBestComposer(candidates: Element[]): ComposerRef | null {
+  for (const el of candidates) {
+    if (!(el instanceof HTMLElement)) continue;
+    if (el instanceof HTMLTextAreaElement && elementLooksUsable(el)) {
+      return { el, getText: () => el.value };
+    }
+    if (el.isContentEditable && elementLooksUsable(el)) {
+      const h = el;
+      return { el: h, getText: () => (h.innerText || h.textContent || "").trim() };
+    }
+  }
+  for (const el of candidates) {
     if (el instanceof HTMLTextAreaElement) {
-      return { getText: () => el!.value };
+      return { el, getText: () => el.value };
     }
     if (el instanceof HTMLElement && el.isContentEditable) {
       const h = el;
-      return { getText: () => (h.innerText || h.textContent || "").trim() };
+      return { el: h, getText: () => (h.innerText || h.textContent || "").trim() };
     }
-    el = el.parentElement;
   }
   return null;
 }
@@ -64,6 +149,7 @@ function composerFromTarget(target: EventTarget | null): ComposerRef | null {
 function findGlobalComposer(): ComposerRef | null {
   const selectors = [
     '#prompt-textarea[contenteditable="true"]',
+    "#prompt-textarea",
     "textarea[data-id='root']",
     "textarea#prompt-textarea",
     "textarea[placeholder*='Message' i]",
@@ -71,32 +157,45 @@ function findGlobalComposer(): ComposerRef | null {
     "[data-testid='composer-text-input']",
     "div.ProseMirror[contenteditable='true']",
     "div[contenteditable='true'][role='textbox']",
-    "textarea",
+    "[contenteditable='true'][data-virtualkeyboard]",
   ];
   for (const sel of selectors) {
-    const el = document.querySelector(sel);
-    if (el instanceof HTMLTextAreaElement && el.offsetParent !== null) {
-      return { getText: () => el.value };
-    }
-    if (el instanceof HTMLElement && el.isContentEditable && el.offsetParent !== null) {
-      const h = el;
-      return { getText: () => (h.innerText || h.textContent || "").trim() };
+    const list = queryShadowAll(document, sel);
+    const hit = pickBestComposer(list);
+    if (hit) return hit;
+    const direct = document.querySelector(sel);
+    if (direct) {
+      const hit2 = pickBestComposer([direct]);
+      if (hit2) return hit2;
     }
   }
-  const ta = document.querySelector("textarea");
-  if (ta instanceof HTMLTextAreaElement && ta.offsetParent !== null) {
-    return { getText: () => ta.value };
-  }
-  return null;
+  const areas = queryShadowAll(document, "textarea");
+  const hit3 = pickBestComposer(areas);
+  return hit3;
 }
 
-function isSendButton(el: Element): boolean {
-  const btn = el.closest("button");
-  if (!btn) return false;
-  if (btn.getAttribute("data-testid") === "send-button") return true;
-  const aria = (btn.getAttribute("aria-label") || "").toLowerCase();
-  if (aria.includes("send")) return true;
+function isLikelySendButton(btn: Element): boolean {
+  if (!(btn instanceof HTMLButtonElement) && !(btn instanceof Element)) return false;
+  const b = btn as HTMLButtonElement;
+  if (b.getAttribute("data-testid") === "send-button") return true;
+  if (b.getAttribute("aria-label")?.toLowerCase().includes("send")) return true;
+  if (b.querySelector("svg[data-icon='paper-plane'], svg[aria-label*='Send' i]")) return true;
+  if (b.id?.toLowerCase().includes("send")) return true;
   return false;
+}
+
+function sendButtonFromClick(ev: MouseEvent): Element | null {
+  const path = typeof ev.composedPath === "function" ? ev.composedPath() : [];
+  for (const n of path) {
+    if (!(n instanceof Element)) continue;
+    const btn = n.closest("button,[role='button']");
+    if (btn && isLikelySendButton(btn)) return btn;
+  }
+  if (ev.target instanceof Element) {
+    const btn = ev.target.closest("button,[role='button']");
+    if (btn && isLikelySendButton(btn)) return btn;
+  }
+  return null;
 }
 
 function esc(s: string): string {
@@ -165,48 +264,83 @@ function showDomFlag(rule: Rule, matchedKw: string, prompt: string): void {
   queueDomLog(rule, "flag", prompt, matchedKw);
 }
 
+function fireSyntheticEnter(composer: ComposerRef | null): void {
+  bypassOnce = true;
+  const el = composer?.el ?? document.activeElement;
+  if (el instanceof HTMLElement && (el.isContentEditable || el instanceof HTMLTextAreaElement)) {
+    el.focus();
+    el.dispatchEvent(
+      new KeyboardEvent("keydown", {
+        key: "Enter",
+        code: "Enter",
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+    return;
+  }
+  const fb = findGlobalComposer();
+  if (fb) {
+    fb.el.focus();
+    fb.el.dispatchEvent(
+      new KeyboardEvent("keydown", {
+        key: "Enter",
+        code: "Enter",
+        bubbles: true,
+        cancelable: true,
+      }),
+    );
+  }
+}
+
+function clickGlobalSend(): void {
+  bypassOnce = true;
+  const candidates = queryShadowAll(
+    document,
+    'button[data-testid="send-button"],button[aria-label*="Send" i],[role="button"][aria-label*="Send" i]',
+  );
+  for (const c of candidates) {
+    if (c instanceof HTMLElement && elementLooksUsable(c)) {
+      c.click();
+      return;
+    }
+  }
+  const btn = document.querySelector('button[data-testid="send-button"]');
+  if (btn instanceof HTMLElement) btn.click();
+}
+
 async function handleMatch(
   result: { matched: true; rule: Rule; matchedKeywords?: string[] },
   prompt: string,
   ev: Event,
+  composerHint: ComposerRef | null,
 ): Promise<void> {
-  const rule = result.rule;
-  const mk = result.matchedKeywords?.[0] ?? "";
+  try {
+    const rule = result.rule;
+    const mk = result.matchedKeywords?.[0] ?? "";
 
-  if (rule.action === "flag") {
-    showDomFlag(rule, mk, prompt);
-    return;
-  }
+    if (rule.action === "flag") {
+      showDomFlag(rule, mk, prompt);
+      return;
+    }
 
-  ev.preventDefault();
-  ev.stopPropagation();
-  ev.stopImmediatePropagation();
+    ev.preventDefault();
+    ev.stopPropagation();
+    ev.stopImmediatePropagation();
 
-  if (rule.action === "block") {
-    showDomBlock(rule, mk, prompt);
-    return;
-  }
-  if (rule.action === "warn") {
-    const ok = await showDomWarn(rule, mk, prompt);
-    if (ok) {
-      bypassOnce = true;
-      const target = (ev as KeyboardEvent).target;
-      if (ev.type === "keydown" && target instanceof HTMLElement) {
-        target.focus();
-        target.dispatchEvent(
-          new KeyboardEvent("keydown", {
-            key: "Enter",
-            bubbles: true,
-            cancelable: true,
-          }),
-        );
-      } else if (ev.type === "click") {
-        const send = document.querySelector('button[data-testid="send-button"]') as
-          | HTMLButtonElement
-          | undefined;
-        send?.click();
+    if (rule.action === "block") {
+      showDomBlock(rule, mk, prompt);
+      return;
+    }
+    if (rule.action === "warn") {
+      const ok = await showDomWarn(rule, mk, prompt);
+      if (ok) {
+        if (ev.type === "keydown") fireSyntheticEnter(composerHint);
+        else clickGlobalSend();
       }
     }
+  } catch (e) {
+    console.error("[Argus] dom guard error", e);
   }
 }
 
@@ -217,16 +351,19 @@ function onKeyDownCapture(ev: KeyboardEvent): void {
     return;
   }
   if (ev.key !== "Enter" || ev.shiftKey || ev.ctrlKey || ev.metaKey || ev.altKey) return;
-  const comp = composerFromTarget(ev.target);
+
+  const comp = composerFromComposedPath(ev) ?? composerFromTargetBubbles(ev.target);
   if (!comp) return;
   const text = comp.getText().trim();
   if (!text) return;
+
   const result = evaluateInputRules(text, guardRules);
   if (!result.matched || !result.rule) return;
   void handleMatch(
     { matched: true, rule: result.rule, matchedKeywords: result.matchedKeywords },
     text,
     ev,
+    comp,
   );
 }
 
@@ -236,17 +373,20 @@ function onClickCapture(ev: MouseEvent): void {
     bypassOnce = false;
     return;
   }
-  if (!(ev.target instanceof Element) || !isSendButton(ev.target)) return;
-  const comp = findGlobalComposer();
+  if (!sendButtonFromClick(ev)) return;
+
+  const comp = findGlobalComposer() ?? composerFromComposedPath(ev);
   if (!comp) return;
   const text = comp.getText().trim();
   if (!text) return;
+
   const result = evaluateInputRules(text, guardRules);
   if (!result.matched || !result.rule) return;
   void handleMatch(
     { matched: true, rule: result.rule, matchedKeywords: result.matchedKeywords },
     text,
     ev,
+    comp,
   );
 }
 
@@ -257,13 +397,26 @@ function onSubmitCapture(ev: SubmitEvent): void {
     return;
   }
   const form = ev.target;
-  if (!(form instanceof HTMLFormElement)) return;
-  const ta = form.querySelector("textarea");
-  const ce = form.querySelector('[contenteditable="true"]');
   let text = "";
-  if (ta instanceof HTMLTextAreaElement) text = ta.value.trim();
-  else if (ce instanceof HTMLElement && ce.isContentEditable)
-    text = (ce.innerText || ce.textContent || "").trim();
+  let comp: ComposerRef | null = null;
+  if (form instanceof HTMLFormElement) {
+    const ta = form.querySelector("textarea");
+    const ce = form.querySelector("[contenteditable='true']");
+    if (ta instanceof HTMLTextAreaElement) {
+      text = ta.value.trim();
+      comp = { el: ta, getText: () => ta.value };
+    } else if (ce instanceof HTMLElement && ce.isContentEditable) {
+      comp = {
+        el: ce,
+        getText: () => (ce.innerText || ce.textContent || "").trim(),
+      };
+      text = comp.getText().trim();
+    }
+  }
+  if (!text) {
+    comp = findGlobalComposer();
+    text = comp?.getText().trim() ?? "";
+  }
   if (!text) return;
   const result = evaluateInputRules(text, guardRules);
   if (!result.matched || !result.rule) return;
@@ -271,6 +424,7 @@ function onSubmitCapture(ev: SubmitEvent): void {
     { matched: true, rule: result.rule, matchedKeywords: result.matchedKeywords },
     text,
     ev,
+    comp,
   );
 }
 
@@ -279,6 +433,17 @@ let domListenersStarted = false;
 export function startDomSendInterception(): void {
   if (domListenersStarted) return;
   domListenersStarted = true;
+
+  void chrome.storage.local.get([KEYS.rules, KEYS.enabled]).then((data) => {
+    setDomGuardState(
+      (data[KEYS.rules] as Rule[] | undefined) ?? [],
+      data[KEYS.enabled] !== false,
+    );
+    console.info(
+      `[Argus] DOM guard hydrated — ${guardRules.length} rule(s) — ${location.hostname}`,
+    );
+  });
+
   document.addEventListener("keydown", onKeyDownCapture, true);
   document.addEventListener("click", onClickCapture, true);
   document.addEventListener("submit", onSubmitCapture, true);
@@ -286,7 +451,7 @@ export function startDomSendInterception(): void {
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== "local") return;
     if (changes[KEYS.rules]) {
-      guardRules = (changes[KEYS.rules].newValue as Rule[] | undefined) ?? [];
+      guardRules = normalizeRulesFromStorage(changes[KEYS.rules].newValue);
     }
     if (changes[KEYS.enabled]) {
       guardEnabled = changes[KEYS.enabled].newValue !== false;

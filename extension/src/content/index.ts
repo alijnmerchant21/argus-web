@@ -1,4 +1,5 @@
 import type { Rule } from "../shared/types";
+import { normalizeRulesFromStorage } from "../shared/normalizeRules";
 import { setDomGuardState, startDomSendInterception } from "./domSendInterception";
 
 const KEYS = { rules: "argus_rules", enabled: "argus_enabled" } as const;
@@ -20,7 +21,8 @@ function publishBootstrapToDom(rules: Rule[], enabled: boolean): void {
 
 async function loadAndInject(): Promise<void> {
   const data = await chrome.storage.local.get([KEYS.rules, KEYS.enabled]);
-  const rules = (data[KEYS.rules] as Rule[] | undefined) ?? [];
+  const raw = (data[KEYS.rules] as Rule[] | undefined) ?? [];
+  const rules = normalizeRulesFromStorage(raw);
   const enabled = data[KEYS.enabled] !== false;
 
   setDomGuardState(rules, enabled);
@@ -75,5 +77,5 @@ chrome.storage.onChanged.addListener((changes, area) => {
   }
 });
 
-void loadAndInject();
 startDomSendInterception();
+void loadAndInject();
