@@ -9,6 +9,9 @@ export default defineManifest({
   permissions: ["storage", "activeTab", "alarms"],
 
   host_permissions: [
+    "http://localhost:3000/*",
+    "http://127.0.0.1:3000/*",
+    "http://localhost:5173/*",
     "https://chatgpt.com/*",
     "https://chat.openai.com/*",
     "https://claude.ai/*",
@@ -29,7 +32,7 @@ export default defineManifest({
         "https://gemini.google.com/*",
       ],
       js: ["src/content/index.ts"],
-      run_at: "document_idle",
+      run_at: "document_start",
     },
   ],
 
@@ -50,7 +53,7 @@ export default defineManifest({
 
   web_accessible_resources: [
     {
-      resources: ["icons/*", "config.json", "rules.json"],
+      resources: ["icons/*", "config.json", "rules.json", "argus-logo.png"],
       matches: ["<all_urls>"],
     },
   ],

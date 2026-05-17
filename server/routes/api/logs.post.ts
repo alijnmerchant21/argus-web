@@ -17,11 +17,6 @@ const bodySchema = z.object({
 });
 
 export default defineEventHandler(async (event) => {
-  if (event.method === "OPTIONS") {
-    setResponseHeaders(event, corsHeaders());
-    return null;
-  }
-
   setResponseHeaders(event, corsHeaders());
 
   const apiKey  = (getRequestHeader(event, "authorization") ?? "").replace(/^Bearer\s+/i, "").trim();

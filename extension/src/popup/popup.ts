@@ -9,13 +9,15 @@ async function render(): Promise<void> {
   const root   = document.getElementById("root")!;
   const active = rules.filter((r) => r.active).length;
 
+  const logoUrl = chrome.runtime.getURL("argus-logo.png");
+
   root.innerHTML = `
     <div style="padding:16px;">
 
       <!-- Header -->
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;">
-        <div style="font-size:22px;">🛡️</div>
-        <div style="font-weight:700;font-size:16px;">Argus Guardrails</div>
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+        <img src="${logoUrl}" alt="" width="36" height="36" style="width:36px;height:36px;object-fit:contain;border-radius:8px;flex-shrink:0;background:#000;" />
+        <div style="font-weight:700;font-size:16px;line-height:1.2;">Argus Guardrails</div>
         <div style="margin-left:auto;">
           <label id="toggle-label" style="display:flex;align-items:center;gap:6px;cursor:pointer;">
             <span style="font-size:12px;color:#64748b;" id="toggle-text">${enabled ? "On" : "Off"}</span>
@@ -55,7 +57,7 @@ async function render(): Promise<void> {
             width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:6px;
             font-size:12px;margin-bottom:6px;
           " />
-          <input id="base-url-input" type="url" placeholder="https://argus-web.vercel.app" style="
+          <input id="base-url-input" type="url" placeholder="http://localhost:3000" style="
             width:100%;padding:6px 8px;border:1px solid #e2e8f0;border-radius:6px;
             font-size:12px;margin-bottom:8px;
           " />
@@ -83,7 +85,7 @@ async function render(): Promise<void> {
           flex:1;padding:8px;border:1px solid #e2e8f0;border-radius:8px;
           background:#fff;font-size:12px;font-weight:600;cursor:pointer;color:#374151;
         ">↻ Sync rules</button>
-        <a href="${cfg?.baseUrl ?? "https://argus-web.vercel.app"}/dashboard" target="_blank" style="
+        <a href="${cfg?.baseUrl ?? "http://localhost:3000"}/dashboard" target="_blank" style="
           flex:1;padding:8px;border:none;border-radius:8px;
           background:#0f172a;color:#fff;font-size:12px;font-weight:600;
           text-decoration:none;text-align:center;
@@ -118,7 +120,7 @@ async function render(): Promise<void> {
   document.getElementById("save-config")?.addEventListener("click", async () => {
     const apiKey  = (document.getElementById("api-key-input")  as HTMLInputElement).value.trim();
     const baseUrl = (document.getElementById("base-url-input") as HTMLInputElement).value.trim()
-                    || "https://argus-web.vercel.app";
+                    || "http://localhost:3000";
     if (!apiKey) return;
     await chrome.runtime.sendMessage({ action: "saveConfig", config: { apiKey, apiBaseUrl: baseUrl } });
     render();

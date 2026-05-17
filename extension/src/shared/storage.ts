@@ -25,7 +25,7 @@ export const storage = {
     if (!d[KEYS.apiKey]) return null;
     return {
       apiKey:         d[KEYS.apiKey],
-      baseUrl:        d[KEYS.baseUrl] ?? "https://argus-web.vercel.app",
+      baseUrl:        d[KEYS.baseUrl] ?? "http://localhost:3000",
       scopedRuleIds:  d[KEYS.scopedRuleIds] ?? undefined,
     };
   },

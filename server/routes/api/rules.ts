@@ -2,12 +2,6 @@ import { defineEventHandler, setResponseHeaders, getRequestHeader, getQuery } fr
 import { requireApiKey, getDb, corsHeaders, safeJsonParse } from "../../utils/api";
 
 export default defineEventHandler(async (event) => {
-  // CORS preflight
-  if (event.method === "OPTIONS") {
-    setResponseHeaders(event, corsHeaders());
-    return null;
-  }
-
   setResponseHeaders(event, corsHeaders());
 
   const username = await requireApiKey(event);
@@ -69,7 +63,7 @@ export default defineEventHandler(async (event) => {
     scope:       r.scope,
     match_logic: r.match_logic,
     domain:      r.domain,
-    active:      true,
+    active:      Boolean(r.active),
   }));
 
   event.node.res.setHeader("Last-Modified", new Date().toUTCString());

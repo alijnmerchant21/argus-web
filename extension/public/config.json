@@ -1,4 +1,4 @@
 {
   "apiKey": "",
-  "apiBaseUrl": "https://argus-web.vercel.app"
+  "apiBaseUrl": "http://localhost:3000"
 }

@@ -29,6 +29,24 @@ function safeJsonParse<T>(str: string, fallback: T): T {
   try { return JSON.parse(str); } catch { return fallback; }
 }
 
+/** Production dashboard / API base (no trailing slash). */
+function getDashboardBaseUrl(): string {
+  const fromEnv = process.env["DASHBOARD_URL"]?.trim();
+  if (fromEnv) return normalizeDashboardBase(fromEnv);
+  const vercel = process.env["VERCEL_URL"]?.trim();
+  if (vercel) {
+    const v = vercel.startsWith("http") ? vercel : `https://${vercel}`;
+    return normalizeDashboardBase(v);
+  }
+  return "http://localhost:3000";
+}
+
+function normalizeDashboardBase(u: string): string {
+  let s = u.replace(/\/$/, "");
+  if (!/^https?:\/\//i.test(s)) s = `https://${s}`;
+  return s;
+}
+
 const generateInput = z.object({
   ruleId: z.string().optional(),
 });
@@ -94,7 +112,7 @@ export const generateExtensionFn = createServerFn({ method: "POST" })
     active:      true,
   }));
 
-  const dashboardUrl = process.env["DASHBOARD_URL"] ?? "https://argus-web.vercel.app";
+  const dashboardUrl = getDashboardBaseUrl();
 
   // 3. Build the zip
   const zip = new JSZip();

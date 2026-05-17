@@ -1,18 +1,47 @@
-import { ChatGPTAdapter } from "./adapters/chatgpt";
-import { ClaudeAdapter }   from "./adapters/claude";
-import { GeminiAdapter }   from "./adapters/gemini";
-import type { BaseAdapter } from "./adapters/base";
+import { buildMainWorldInjection } from "./buildMainWorldInjection";
+import type { Rule } from "../shared/types";
 
-const HOST = location.hostname;
+const KEYS = { rules: "argus_rules", enabled: "argus_enabled" } as const;
 
-let adapter: BaseAdapter | null = null;
-
-if (HOST.includes("chatgpt.com") || HOST.includes("chat.openai.com")) {
-  adapter = new ChatGPTAdapter();
-} else if (HOST.includes("claude.ai")) {
-  adapter = new ClaudeAdapter();
-} else if (HOST.includes("gemini.google.com")) {
-  adapter = new GeminiAdapter();
+function injectMainWorld(rules: Rule[], enabled: boolean): void {
+  const prev = document.getElementById("argus-main-hook");
+  if (prev) prev.remove();
+  const el = document.createElement("script");
+  el.id = "argus-main-hook";
+  el.textContent = buildMainWorldInjection(rules, enabled);
+  (document.head ?? document.documentElement).appendChild(el);
+  el.remove();
 }
 
-adapter?.init().catch(console.error);
+async function loadAndInject(): Promise<void> {
+  const data = await chrome.storage.local.get([KEYS.rules, KEYS.enabled]);
+  const rules = (data[KEYS.rules] as Rule[] | undefined) ?? [];
+  const enabled = data[KEYS.enabled] !== false;
+  injectMainWorld(rules, enabled);
+  window.postMessage(
+    { source: "argus-isolated", type: "sync", payload: { rules, enabled } },
+    "*",
+  );
+}
+
+window.addEventListener("message", (ev) => {
+  if (ev.source !== window) return;
+  const d = ev.data;
+  if (!d || d.source !== "argus-main" || d.type !== "argus-log") return;
+  chrome.runtime.sendMessage({ action: "queueLog", entry: d.entry });
+});
+
+chrome.runtime.onMessage.addListener((msg) => {
+  if (msg.action === "rulesUpdated" || msg.action === "enabledChanged") {
+    void loadAndInject();
+  }
+});
+
+chrome.storage.onChanged.addListener((changes, area) => {
+  if (area !== "local") return;
+  if (changes[KEYS.rules] || changes[KEYS.enabled]) {
+    void loadAndInject();
+  }
+});
+
+void loadAndInject();

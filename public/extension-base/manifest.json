@@ -9,6 +9,9 @@
     "alarms"
   ],
   "host_permissions": [
+    "http://localhost:3000/*",
+    "http://127.0.0.1:3000/*",
+    "http://localhost:5173/*",
     "https://chatgpt.com/*",
     "https://chat.openai.com/*",
     "https://claude.ai/*",
@@ -21,7 +24,7 @@
   "content_scripts": [
     {
       "js": [
-        "assets/index.ts-loader-CYSeayVx.js"
+        "assets/index.ts-kNgdg__h.js"
       ],
       "matches": [
         "https://chatgpt.com/*",
@@ -29,7 +32,7 @@
         "https://claude.ai/*",
         "https://gemini.google.com/*"
       ],
-      "run_at": "document_idle"
+      "run_at": "document_start"
     }
   ],
   "action": {
@@ -53,7 +56,8 @@
       "resources": [
         "icons/*",
         "config.json",
-        "rules.json"
+        "rules.json",
+        "argus-logo.png"
       ],
       "use_dynamic_url": false
     },
@@ -65,8 +69,7 @@
         "https://gemini.google.com/*"
       ],
       "resources": [
-        "assets/storage-CUkw2NAB.js",
-        "assets/index.ts-BdgIB_3U.js"
+        "assets/index.ts-kNgdg__h.js"
       ],
       "use_dynamic_url": false
     }

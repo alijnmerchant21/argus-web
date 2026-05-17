@@ -123,6 +123,13 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
     });
     return true;
   }
+  if (msg.action === "queueLog") {
+    storage
+      .queueLog(msg.entry)
+      .then(() => sendResponse({ ok: true }))
+      .catch(() => sendResponse({ ok: false }));
+    return true;
+  }
 });
 
 function broadcastRulesUpdated(): void {

@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "prebuild": "node scripts/sync-logo.mjs",
     "dev": "vite build --watch",
     "build": "vite build",
     "build:copy": "vite build && node scripts/copy-to-public.mjs"
