@@ -9,7 +9,12 @@
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
     "lint": "eslint .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "ext:install": "npm install --prefix extension",
+    "ext:dev": "npm run dev --prefix extension",
+    "ext:build": "npm run build --prefix extension",
+    "ext:build:copy": "npm run build --prefix extension && node extension/scripts/copy-to-public.mjs",
+    "build:all": "npm run ext:build:copy && vite build"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
@@ -51,6 +56,7 @@
     "date-fns": "^4.1.0",
     "embla-carousel-react": "^8.6.0",
     "input-otp": "^1.4.2",
+    "jszip": "^3.10.1",
     "lucide-react": "^0.575.0",
     "nitro": "^3.0.260429-beta",
     "react": "^19.2.0",
@@ -69,6 +75,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.32.0",
+    "@types/jszip": "^3.4.0",
     "@types/node": "^22.16.5",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",

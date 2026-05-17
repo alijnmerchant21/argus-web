@@ -1,10 +1,10 @@
 import { useMemo, useState, useRef, useEffect } from "react";
-import { createFileRoute, Link, redirect, useNavigate, useRouter } from "@tanstack/react-router";
+import { createFileRoute, redirect, useNavigate, useRouter } from "@tanstack/react-router";
 import {
   Plus, FileText, BarChart3, X, Download,
   ShieldBan, AlertTriangle, Flag, Loader2,
   Stethoscope, Scale, GraduationCap, FlaskConical, Landmark, Sparkles,
-  Key, Copy, Check, RefreshCw,
+  Key, Copy, Check, RefreshCw, PackageOpen,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -275,19 +275,141 @@ function fromTemplate(t: Template): FormState {
   };
 }
 
-// ── API key panel ─────────────────────────────────────────────────────────────
+// ── Install instructions dialog ───────────────────────────────────────────────
+
+const INSTALL_STEPS = [
+  { icon: "📥", title: "Unzip the file", body: "Find the downloaded .zip and extract it to a folder you'll keep (e.g. Documents/argus-extension)." },
+  { icon: "🌐", title: "Open Chrome extensions", body: "In Chrome, go to chrome://extensions — you can also reach it via ⋮ → Extensions → Manage extensions." },
+  { icon: "🔧", title: "Enable Developer mode", body: 'Toggle "Developer mode" on (top-right of the extensions page). This lets you load local extensions.' },
+  { icon: "📂", title: "Load the extension", body: 'Click "Load unpacked", then select the folder you unzipped in step 1.' },
+  { icon: "✅", title: "You're live", body: "The Argus shield icon appears in your toolbar. Open ChatGPT, Claude, or Gemini — your rules are active immediately." },
+  { icon: "🔄", title: "Rules stay in sync", body: "Your rules sync automatically from the dashboard every 15 minutes. No reinstall needed when you change rules." },
+];
+
+function InstallInstructionsDialog({
+  open, onClose, ruleTitle,
+}: { open: boolean; onClose: () => void; ruleTitle?: string }) {
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-h-[85dvh] w-[min(560px,calc(100vw-2rem))] overflow-y-auto rounded-2xl p-0">
+        <DialogHeader className="px-6 pt-6 pb-2">
+          <div className="flex items-center gap-3">
+            <PackageOpen className="h-6 w-6 text-emerald-600" />
+            <DialogTitle className="text-xl font-bold">Install your extension</DialogTitle>
+          </div>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {ruleTitle
+              ? <>Your extension for <strong>"{ruleTitle}"</strong> has downloaded. Follow these steps to install it.</>
+              : "Your extension has downloaded. Follow these steps to install it."}
+          </p>
+        </DialogHeader>
+
+        <div className="px-6 pb-6 space-y-3">
+          {INSTALL_STEPS.map((step, i) => (
+            <div key={i} className="flex gap-4 rounded-2xl border border-border bg-muted/30 px-4 py-3.5">
+              <div className="mt-0.5 text-xl shrink-0">{step.icon}</div>
+              <div>
+                <p className="text-sm font-semibold">
+                  <span className="mr-1.5 font-mono text-[10px] text-muted-foreground">{i + 1}.</span>
+                  {step.title}
+                </p>
+                <p className="mt-0.5 text-xs text-muted-foreground leading-relaxed">{step.body}</p>
+              </div>
+            </div>
+          ))}
+
+          <div className="mt-2 rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-xs text-amber-800">
+            <strong>Note:</strong> Do not delete the unzipped folder — Chrome loads the extension from it each time.
+          </div>
+
+          <Button type="button" onClick={onClose} className="w-full mt-2 rounded-full bg-foreground text-background">
+            Got it
+          </Button>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ── Download helper (shared by all-rules and per-rule) ────────────────────────
+
+async function downloadExtension(ruleId?: string): Promise<{ filename: string; ruleTitle?: string }> {
+  const result = await generateExtensionFn({ data: { ruleId } });
+  const bytes  = Uint8Array.from(atob(result.base64), (c) => c.charCodeAt(0));
+  const blob   = new Blob([bytes], { type: "application/zip" });
+  const url    = URL.createObjectURL(blob);
+  const a      = document.createElement("a");
+  a.href       = url;
+  a.download   = result.filename;
+  a.click();
+  URL.revokeObjectURL(url);
+  return { filename: result.filename };
+}
+
+// ── Generate extension bar ────────────────────────────────────────────────────
+
+function GenerateExtensionBar({
+  activeCount,
+  onDownloaded,
+}: { activeCount: number; onDownloaded: () => void }) {
+  const [generating, setGenerating] = useState(false);
+  const [error,      setError]      = useState<string | null>(null);
+
+  const generate = async () => {
+    if (generating) return;
+    setGenerating(true);
+    setError(null);
+    try {
+      await downloadExtension();
+      onDownloaded();
+    } catch {
+      setError("Generation failed — please try again.");
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  return (
+    <div className="mt-8 rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white p-5">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-slate-800">Download Chrome Extension</p>
+          <p className="mt-0.5 text-xs text-slate-500">
+            {activeCount > 0
+              ? `Packages your ${activeCount} active rule${activeCount !== 1 ? "s" : ""} into a ready-to-install extension — no setup needed.`
+              : "Add at least one active rule to generate your extension."}
+          </p>
+          {error && <p className="mt-1 text-xs text-rose-600">{error}</p>}
+        </div>
+        <Button
+          type="button"
+          disabled={generating || activeCount === 0}
+          onClick={generate}
+          className="h-10 shrink-0 gap-2 rounded-full bg-foreground text-background text-sm font-semibold hover:bg-foreground/90"
+        >
+          {generating
+            ? <><Loader2 className="h-4 w-4 animate-spin" /> Packaging…</>
+            : <><Download className="h-4 w-4" /> Download .zip</>}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+// ── API key panel (advanced / collapsed by default) ────────────────────────────
 
 function ApiKeyPanel() {
-  const [apiKey,      setApiKey]      = useState<string | null>(null);
-  const [loading,     setLoading]     = useState(true);
-  const [generating,  setGenerating]  = useState(false);
-  const [copied,      setCopied]      = useState(false);
+  const [apiKey,     setApiKey]     = useState<string | null>(null);
+  const [loading,    setLoading]    = useState(true);
+  const [generating, setGenerating] = useState(false);
+  const [copied,     setCopied]     = useState(false);
+  const [open,       setOpen]       = useState(false);
 
   useEffect(() => {
     getApiKeyFn().then((res) => { setApiKey(res.api_key); setLoading(false); });
   }, []);
 
-  const generate = async () => {
+  const regenerate = async () => {
     setGenerating(true);
     const res = await regenerateApiKeyFn();
     setApiKey(res.api_key);
@@ -302,38 +424,47 @@ function ApiKeyPanel() {
   };
 
   return (
-    <div className="mt-6 rounded-2xl border border-border bg-card p-5 shadow-sm">
-      <div className="flex items-center gap-2 mb-3">
-        <Key className="h-4 w-4 text-muted-foreground" />
-        <p className="text-sm font-semibold">Connect Chrome Extension</p>
-      </div>
+    <div className="mt-3 rounded-2xl border border-border px-5 py-3">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center gap-2 text-left"
+      >
+        <Key className="h-3.5 w-3.5 text-muted-foreground" />
+        <span className="text-xs font-semibold text-muted-foreground">Advanced — API key</span>
+        <span className="ml-auto text-xs text-muted-foreground">{open ? "▲" : "▼"}</span>
+      </button>
 
-      {loading ? (
-        <div className="h-10 animate-pulse rounded-xl bg-muted" />
-      ) : apiKey ? (
-        <div className="space-y-2">
-          <div className="flex items-center gap-2">
-            <code className="flex-1 truncate rounded-xl border border-border bg-muted px-3 py-2 font-mono text-xs text-muted-foreground">
-              {apiKey}
-            </code>
-            <Button type="button" size="icon" variant="outline" className="h-9 w-9 shrink-0 rounded-xl" onClick={copy} title="Copy key">
-              {copied ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}
-            </Button>
-            <Button type="button" size="icon" variant="outline" className="h-9 w-9 shrink-0 rounded-xl" onClick={generate} disabled={generating} title="Regenerate key">
-              <RefreshCw className={cn("h-4 w-4", generating && "animate-spin")} />
-            </Button>
-          </div>
-          <p className="text-[11px] text-muted-foreground">
-            Paste this into the Argus extension popup. Keep it secret — it grants read access to your rules.
-          </p>
-        </div>
-      ) : (
-        <div className="space-y-2">
-          <p className="text-sm text-muted-foreground">No API key yet. Generate one to connect the extension.</p>
-          <Button type="button" size="sm" variant="outline" className="rounded-full gap-2" onClick={generate} disabled={generating}>
-            {generating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Key className="h-3.5 w-3.5" />}
-            Generate key
-          </Button>
+      {open && (
+        <div className="mt-3 space-y-2">
+          {loading ? (
+            <div className="h-9 animate-pulse rounded-xl bg-muted" />
+          ) : apiKey ? (
+            <>
+              <div className="flex items-center gap-2">
+                <code className="flex-1 truncate rounded-xl border border-border bg-muted px-3 py-2 font-mono text-xs text-muted-foreground">
+                  {apiKey}
+                </code>
+                <Button type="button" size="icon" variant="outline" className="h-9 w-9 shrink-0 rounded-xl" onClick={copy} title="Copy">
+                  {copied ? <Check className="h-4 w-4 text-emerald-600" /> : <Copy className="h-4 w-4" />}
+                </Button>
+                <Button type="button" size="icon" variant="outline" className="h-9 w-9 shrink-0 rounded-xl" onClick={regenerate} disabled={generating} title="Rotate key">
+                  <RefreshCw className={cn("h-4 w-4", generating && "animate-spin")} />
+                </Button>
+              </div>
+              <p className="text-[10px] text-muted-foreground leading-relaxed">
+                This key is already baked into your downloaded extension. Only use it if you're connecting manually or building your own integration. Rotating it will require a fresh extension download.
+              </p>
+            </>
+          ) : (
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground">No key yet — one is created automatically when you download the extension.</p>
+              <Button type="button" size="sm" variant="outline" className="rounded-full gap-2" onClick={regenerate} disabled={generating}>
+                {generating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Key className="h-3.5 w-3.5" />}
+                Generate key
+              </Button>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -347,13 +478,15 @@ function DashboardPage() {
   const navigate = useNavigate();
   const rules    = Route.useLoaderData();
 
-  const [selectedId,  setSelectedId]  = useState<string | null>(null);
-  const [isNew,       setIsNew]       = useState(false);
-  const [form,        setForm]        = useState<FormState>(emptyForm());
-  const [readOnly,    setReadOnly]    = useState(false);
-  const [saving,      setSaving]      = useState(false);
-  const [deleting,    setDeleting]    = useState(false);
-  const [pickerOpen,  setPickerOpen]  = useState(false);
+  const [selectedId,    setSelectedId]    = useState<string | null>(null);
+  const [isNew,         setIsNew]         = useState(false);
+  const [form,          setForm]          = useState<FormState>(emptyForm());
+  const [readOnly,      setReadOnly]      = useState(false);
+  const [saving,        setSaving]        = useState(false);
+  const [deleting,      setDeleting]      = useState(false);
+  const [pickerOpen,    setPickerOpen]    = useState(false);
+  const [instructions,  setInstructions]  = useState<{ open: boolean; ruleTitle?: string }>({ open: false });
+  const [dlgRule,       setDlgRule]       = useState<{ id: string; generating: boolean } | null>(null);
 
   const patch = <K extends keyof FormState>(key: K, val: FormState[K]) =>
     setForm((f) => ({ ...f, [key]: val }));
@@ -430,6 +563,20 @@ function DashboardPage() {
       await router.invalidate();
     } finally {
       setDeleting(false);
+    }
+  };
+
+  const downloadSingleRule = async (ruleId: string) => {
+    if (dlgRule?.generating) return;
+    setDlgRule({ id: ruleId, generating: true });
+    try {
+      await downloadExtension(ruleId);
+      const title = rules.find((r) => r.id === ruleId)?.title;
+      setInstructions({ open: true, ruleTitle: title });
+    } catch {
+      // silent — could add toast here
+    } finally {
+      setDlgRule(null);
     }
   };
 
@@ -718,11 +865,15 @@ function DashboardPage() {
                     <BarChart3 className="h-4 w-4" /> See report
                   </Button>
                   <Button
-                    type="button" variant="outline" disabled
-                    className="fun-btn gap-2 rounded-full opacity-50"
-                    title="Coming soon — download an extension for this rule only"
+                    type="button" variant="outline"
+                    className="fun-btn gap-2 rounded-full"
+                    disabled={!!dlgRule?.generating}
+                    onClick={() => downloadSingleRule(selectedId!)}
+                    title="Download an extension with only this rule"
                   >
-                    <Download className="h-4 w-4" /> This rule only
+                    {dlgRule?.generating
+                      ? <><Loader2 className="h-4 w-4 animate-spin" /> Packaging…</>
+                      : <><Download className="h-4 w-4" /> This rule only</>}
                   </Button>
                   <Button
                     type="button" variant="ghost"
@@ -734,18 +885,18 @@ function DashboardPage() {
                 </div>
               )}
 
-              <p className="mt-8 text-center text-sm text-muted-foreground">
-                <Link to="/" className="font-medium text-foreground underline-offset-4 hover:underline">Back to site</Link>
-              </p>
             </div>
           )}
         </section>
       </div>
 
       {/* ── Generate Extension ── */}
-      <GenerateExtensionBar activeCount={activeCount} />
+      <GenerateExtensionBar
+        activeCount={activeCount}
+        onDownloaded={() => setInstructions({ open: true })}
+      />
 
-      {/* API key */}
+      {/* API key (collapsed by default) */}
       <ApiKeyPanel />
 
       {/* Template picker */}
@@ -754,6 +905,13 @@ function DashboardPage() {
         onClose={() => setPickerOpen(false)}
         onBlank={startNew}
         onSelect={startFromTemplate}
+      />
+
+      {/* Install instructions */}
+      <InstallInstructionsDialog
+        open={instructions.open}
+        ruleTitle={instructions.ruleTitle}
+        onClose={() => setInstructions({ open: false })}
       />
     </div>
   );

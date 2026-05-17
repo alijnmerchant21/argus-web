@@ -2,6 +2,9 @@ import { createServerFn } from "@tanstack/react-start";
 import { useSession } from "@tanstack/react-start/server";
 import { neon } from "@neondatabase/serverless";
 import JSZip from "jszip";
+import { readFileSync, existsSync, readdirSync, statSync } from "fs";
+import { resolve, relative, join } from "path";
+import { z } from "zod";
 
 function getDb() {
   const url = process.env["DATABASE_URL"];
@@ -26,18 +29,24 @@ function safeJsonParse<T>(str: string, fallback: T): T {
   try { return JSON.parse(str); } catch { return fallback; }
 }
 
+const generateInput = z.object({
+  ruleId: z.string().optional(),
+});
+
 /**
  * Generates a personalised Chrome extension zip containing:
  *  - All pre-built extension files from /public/extension-base/
  *  - config.json  ← API key + dashboard URL baked in (no manual setup)
  *  - rules.json   ← user's active rules baked in (works offline immediately)
  *
- * The extension reads config.json on startup — the user loads it in Chrome
- * and it works immediately with zero configuration.
+ * Pass `ruleId` to bundle a single-rule extension instead of all rules.
  */
-export const generateExtensionFn = createServerFn({ method: "POST" }).handler(async () => {
+export const generateExtensionFn = createServerFn({ method: "POST" })
+  .inputValidator(generateInput)
+  .handler(async ({ data }) => {
   const username = await getUsername();
   const sql = getDb();
+  const { ruleId } = data;
 
   // 1. Get or auto-create API key
   let apiKey: string;
@@ -57,13 +66,20 @@ export const generateExtensionFn = createServerFn({ method: "POST" }).handler(as
     `;
   }
 
-  // 2. Get active rules
-  const rows = await sql`
-    SELECT id, title, action, keywords, body, severity, scope, match_logic, domain, active
-    FROM rules
-    WHERE user_id = ${username} AND active = 1
-    ORDER BY updated_at DESC
-  `;
+  // 2. Get rules (all active, or a specific single rule)
+  const rows = ruleId
+    ? await sql`
+        SELECT id, title, action, keywords, body, severity, scope, match_logic, domain, active
+        FROM rules
+        WHERE user_id = ${username} AND id = ${ruleId}
+        LIMIT 1
+      `
+    : await sql`
+        SELECT id, title, action, keywords, body, severity, scope, match_logic, domain, active
+        FROM rules
+        WHERE user_id = ${username} AND active = 1
+        ORDER BY updated_at DESC
+      `;
 
   const rules = rows.map((r) => ({
     id:          r.id,
@@ -83,62 +99,22 @@ export const generateExtensionFn = createServerFn({ method: "POST" }).handler(as
   // 3. Build the zip
   const zip = new JSZip();
 
-  // config.json — baked-in credentials so the extension auto-connects
-  zip.file("config.json", JSON.stringify({
+  // config.json — baked-in credentials + optional scope lock
+  // scopedRuleIds: when set, the extension syncs ONLY these rule IDs.
+  // For all-rules bundles this field is absent — extension fetches all active rules.
+  const configPayload: Record<string, unknown> = {
     apiKey,
     apiBaseUrl: dashboardUrl,
     generatedAt: Date.now(),
     generatedFor: username,
-  }, null, 2));
+  };
+  if (ruleId && rules.length === 1) {
+    configPayload.scopedRuleIds = [rules[0].id];
+  }
+  zip.file("config.json", JSON.stringify(configPayload, null, 2));
 
   // rules.json — baked-in rules so the extension works immediately offline
   zip.file("rules.json", JSON.stringify(rules, null, 2));
-
-  // manifest.json — extension manifest (V3)
-  zip.file("manifest.json", JSON.stringify({
-    manifest_version: 3,
-    name: "Argus Guardrails",
-    version: "2.0.0",
-    description: "Enforce your custom AI guardrails on ChatGPT, Claude, and Gemini.",
-    permissions: ["storage", "activeTab", "alarms"],
-    host_permissions: [
-      "https://chatgpt.com/*",
-      "https://chat.openai.com/*",
-      "https://claude.ai/*",
-      "https://gemini.google.com/*",
-    ],
-    background: {
-      service_worker: "background/service-worker.js",
-      type: "module",
-    },
-    content_scripts: [{
-      matches: [
-        "https://chatgpt.com/*",
-        "https://chat.openai.com/*",
-        "https://claude.ai/*",
-        "https://gemini.google.com/*",
-      ],
-      js: ["content/index.js"],
-      run_at: "document_idle",
-    }],
-    action: {
-      default_popup: "popup/index.html",
-      default_icon: {
-        "16":  "icons/icon-16.png",
-        "48":  "icons/icon-48.png",
-        "128": "icons/icon-128.png",
-      },
-    },
-    icons: {
-      "16":  "icons/icon-16.png",
-      "48":  "icons/icon-48.png",
-      "128": "icons/icon-128.png",
-    },
-    web_accessible_resources: [{
-      resources: ["icons/*"],
-      matches: ["https://chatgpt.com/*", "https://chat.openai.com/*", "https://claude.ai/*", "https://gemini.google.com/*"],
-    }],
-  }, null, 2));
 
   // README — instructions for loading the extension
   zip.file("README.txt", [
@@ -167,31 +143,50 @@ export const generateExtensionFn = createServerFn({ method: "POST" }).handler(as
     "compiled files. Contact your administrator.",
   ].join("\n"));
 
-  // Placeholder notice for extension JS files
-  // (replaced with real compiled files once extension agent delivers them)
-  zip.folder("background");
-  zip.folder("content");
-  zip.folder("popup");
-  zip.folder("icons");
+  // Try to bundle real compiled extension files; fall back to placeholders
+  const extensionBase = resolve(process.cwd(), "public/extension-base");
+  const hasCompiledFiles = existsSync(extensionBase);
 
-  zip.file("background/service-worker.js", [
-    "// PLACEHOLDER — replace with compiled service-worker.js from argus-extension build",
-    "// See: https://github.com/your-org/argus-extension",
-    "console.warn('[Argus] Extension JS files not yet installed. Please replace placeholders.');",
-  ].join("\n"));
+  if (hasCompiledFiles) {
+    // Recursively add all files from extension-base/ into the zip
+    function addDir(dir: string, zipFolder: JSZip): void {
+      for (const entry of readdirSync(dir)) {
+        const full = join(dir, entry);
+        const rel  = relative(extensionBase, full);
+        if (statSync(full).isDirectory()) {
+          addDir(full, zipFolder);
+        } else {
+          // Skip the stub config/rules — we inject personalised versions above
+          if (rel === "config.json" || rel === "rules.json") continue;
+          zipFolder.file(rel, readFileSync(full));
+        }
+      }
+    }
+    addDir(extensionBase, zip);
+  } else {
+    // Placeholders so the zip is still valid (user sees a helpful error)
+    zip.folder("background");
+    zip.folder("content");
+    zip.folder("popup");
+    zip.folder("icons");
 
-  zip.file("content/index.js", [
-    "// PLACEHOLDER — replace with compiled content/index.js from argus-extension build",
-    "console.warn('[Argus] Extension JS files not yet installed. Please replace placeholders.');",
-  ].join("\n"));
+    zip.file("background/service-worker.js", [
+      "// PLACEHOLDER — run `npm run ext:build:copy` to replace with real files",
+      "console.warn('[Argus] Extension not yet compiled. See README.txt');",
+    ].join("\n"));
 
-  zip.file("popup/index.html", `<!DOCTYPE html>
+    zip.file("content/index.js", [
+      "// PLACEHOLDER — run `npm run ext:build:copy` to replace with real files",
+      "console.warn('[Argus] Extension not yet compiled. See README.txt');",
+    ].join("\n"));
+
+    zip.file("popup/index.html", `<!DOCTYPE html>
 <html><head><meta charset="UTF-8"><title>Argus</title></head>
 <body style="width:320px;padding:20px;font-family:system-ui,sans-serif">
   <h2>🛡️ Argus</h2>
-  <p>Extension files not yet installed.</p>
-  <p>Replace placeholder JS files with the compiled build from <code>argus-extension</code>.</p>
+  <p>Extension not yet compiled. Run <code>npm run ext:build:copy</code>.</p>
 </body></html>`);
+  }
 
   // Generate zip as base64
   const base64 = await zip.generateAsync({
@@ -200,10 +195,12 @@ export const generateExtensionFn = createServerFn({ method: "POST" }).handler(as
     compressionOptions: { level: 6 },
   });
 
-  return {
-    base64,
-    filename: `argus-extension-${username}-${Date.now()}.zip`,
-    ruleCount: rules.length,
-    apiKey,
-  };
+  const singleRuleTitle = ruleId && rules.length === 1
+    ? rules[0].title.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "")
+    : null;
+  const filename = singleRuleTitle
+    ? `argus-${singleRuleTitle}-${Date.now()}.zip`
+    : `argus-extension-${username}-${Date.now()}.zip`;
+
+  return { base64, filename, ruleCount: rules.length, apiKey, singleRule: !!ruleId };
 });

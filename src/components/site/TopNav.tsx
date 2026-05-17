@@ -11,7 +11,7 @@ export function TopNav({ session }: TopNavProps) {
   const handleLogout = async () => {
     await logoutFn();
     await router.invalidate();
-    await router.navigate({ to: "/login" });
+    await router.navigate({ to: "/" });
   };
 
   return (
@@ -30,28 +30,22 @@ export function TopNav({ session }: TopNavProps) {
               height={42}
             />
           </Link>
-          <Link to="/how-it-works" className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
-            How it works
-          </Link>
+          {!session && (
+            <Link to="/how-it-works" className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
+              How it works
+            </Link>
+          )}
         </div>
 
         <div className="flex shrink-0 items-center gap-2 sm:gap-3">
           {session ? (
-            <>
-              <Link
-                to="/dashboard"
-                className="inline-flex h-10 shrink-0 items-center rounded-full bg-foreground px-4 text-sm font-semibold text-background transition-colors hover:bg-foreground/90 sm:h-11 sm:px-5"
-              >
-                Dashboard
-              </Link>
-              <button
-                type="button"
-                onClick={handleLogout}
-                className="inline-flex h-10 shrink-0 items-center rounded-full border border-border bg-background px-4 text-sm font-semibold shadow-sm transition-colors hover:bg-secondary sm:h-11 sm:px-5"
-              >
-                Sign out
-              </button>
-            </>
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="inline-flex h-10 shrink-0 items-center rounded-full border border-border bg-background px-4 text-sm font-semibold shadow-sm transition-colors hover:bg-secondary sm:h-11 sm:px-5"
+            >
+              Sign out
+            </button>
           ) : (
             <Link
               to="/login"
