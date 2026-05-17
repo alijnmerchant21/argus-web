@@ -1,13 +1,13 @@
 import type { Rule, LogEntry, ArgusConfig } from "./types";
 
 const KEYS = {
-  rules:          "argus_rules",
-  lastSync:       "argus_last_sync",
-  apiKey:         "argus_api_key",
-  baseUrl:        "argus_base_url",
-  scopedRuleIds:  "argus_scoped_rule_ids",
-  enabled:        "argus_enabled",
-  logQueue:       "argus_log_queue",
+  rules: "argus_rules",
+  lastSync: "argus_last_sync",
+  apiKey: "argus_api_key",
+  baseUrl: "argus_base_url",
+  scopedRuleIds: "argus_scoped_rule_ids",
+  enabled: "argus_enabled",
+  logQueue: "argus_log_queue",
 } as const;
 
 export const storage = {
@@ -24,15 +24,15 @@ export const storage = {
     const d = await chrome.storage.local.get([KEYS.apiKey, KEYS.baseUrl, KEYS.scopedRuleIds]);
     if (!d[KEYS.apiKey]) return null;
     return {
-      apiKey:         d[KEYS.apiKey],
-      baseUrl:        d[KEYS.baseUrl] ?? "http://localhost:3000",
-      scopedRuleIds:  d[KEYS.scopedRuleIds] ?? undefined,
+      apiKey: d[KEYS.apiKey],
+      baseUrl: d[KEYS.baseUrl] ?? "http://localhost:3000",
+      scopedRuleIds: d[KEYS.scopedRuleIds] ?? undefined,
     };
   },
 
   async setConfig(cfg: ArgusConfig): Promise<void> {
     const patch: Record<string, unknown> = {
-      [KEYS.apiKey]:  cfg.apiKey,
+      [KEYS.apiKey]: cfg.apiKey,
       [KEYS.baseUrl]: cfg.apiBaseUrl,
     };
     if (cfg.scopedRuleIds?.length) {
@@ -64,10 +64,18 @@ export const storage = {
     await chrome.storage.local.set({ [KEYS.logQueue]: q });
   },
 
-  async drainLogQueue(): Promise<LogEntry[]> {
+  async getLogQueue(): Promise<LogEntry[]> {
     const d = await chrome.storage.local.get(KEYS.logQueue);
-    const q: LogEntry[] = d[KEYS.logQueue] ?? [];
-    if (q.length > 0) await chrome.storage.local.set({ [KEYS.logQueue]: [] });
+    return d[KEYS.logQueue] ?? [];
+  },
+
+  async clearLogQueue(): Promise<void> {
+    await chrome.storage.local.set({ [KEYS.logQueue]: [] });
+  },
+
+  async drainLogQueue(): Promise<LogEntry[]> {
+    const q = await this.getLogQueue();
+    if (q.length > 0) await this.clearLogQueue();
     return q;
   },
 };

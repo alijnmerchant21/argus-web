@@ -11,10 +11,10 @@ async function injectArgusMainWorld(tabId: number, frameId: number | undefined):
   });
 }
 
-const SYNC_ALARM  = "argus-sync";
+const SYNC_ALARM = "argus-sync";
 const FLUSH_ALARM = "argus-flush";
-const SYNC_EVERY  = 15;  // minutes
-const FLUSH_EVERY = 2;   // minutes
+const SYNC_EVERY = 15; // minutes
+const FLUSH_EVERY = 2; // minutes
 
 // ── Bootstrap ────────────────────────────────────────────────────────────────
 chrome.runtime.onInstalled.addListener(async () => {
@@ -29,7 +29,7 @@ chrome.runtime.onStartup.addListener(() => {
 });
 
 function setupAlarms(): void {
-  chrome.alarms.create(SYNC_ALARM,  { periodInMinutes: SYNC_EVERY  });
+  chrome.alarms.create(SYNC_ALARM, { periodInMinutes: SYNC_EVERY });
   chrome.alarms.create(FLUSH_ALARM, { periodInMinutes: FLUSH_EVERY });
 }
 
@@ -37,7 +37,7 @@ function setupAlarms(): void {
 async function bootstrapFromBundledConfig(): Promise<void> {
   try {
     const configUrl = chrome.runtime.getURL("config.json");
-    const rulesUrl  = chrome.runtime.getURL("rules.json");
+    const rulesUrl = chrome.runtime.getURL("rules.json");
     const [cfgRes, rulesRes] = await Promise.all([fetch(configUrl), fetch(rulesUrl)]);
     if (cfgRes.ok) {
       const cfg = await cfgRes.json();
@@ -54,7 +54,7 @@ async function bootstrapFromBundledConfig(): Promise<void> {
 
 // ── Alarms ───────────────────────────────────────────────────────────────────
 chrome.alarms.onAlarm.addListener(async (alarm) => {
-  if (alarm.name === SYNC_ALARM)  await syncRules();
+  if (alarm.name === SYNC_ALARM) await syncRules();
   if (alarm.name === FLUSH_ALARM) await flushLogs();
 });
 
@@ -94,34 +94,59 @@ async function syncRules(): Promise<void> {
 
 // ── Log flush ────────────────────────────────────────────────────────────────
 async function flushLogs(): Promise<void> {
-  const cfg  = await storage.getConfig();
+  const cfg = await storage.getConfig();
   if (!cfg?.apiKey) return;
-  const logs = await storage.drainLogQueue();
+  const logs = await storage.getLogQueue();
   if (!logs.length) return;
 
   try {
     const res = await fetch(`${cfg.baseUrl}/api/logs`, {
-      method:  "POST",
+      method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${cfg.apiKey}` },
-      body:    JSON.stringify({ logs }),
+      body: JSON.stringify({ logs }),
     });
+    const resText = await res.text().catch(() => "");
     if (!res.ok) {
-      // Put logs back — don't lose them on transient error
-      for (const log of logs) await storage.queueLog(log);
+      console.warn("[Argus] flushLogs HTTP", res.status, resText.slice(0, 500));
+      return;
     }
-  } catch {
-    for (const log of logs) await storage.queueLog(log);
+    let accepted = -1;
+    try {
+      const j = JSON.parse(resText) as { accepted?: number };
+      accepted = typeof j.accepted === "number" ? j.accepted : -1;
+    } catch {
+      console.warn("[Argus] flushLogs: response was not JSON", resText.slice(0, 200));
+      return;
+    }
+    if (accepted !== logs.length) {
+      console.warn(
+        "[Argus] flushLogs: server accepted",
+        accepted,
+        "of",
+        logs.length,
+        "— check API key / rule ownership; body:",
+        resText.slice(0, 300),
+      );
+      return;
+    }
+    await storage.clearLogQueue();
+  } catch (e) {
+    console.warn("[Argus] flushLogs failed", e);
   }
 }
 
 // ── Message bus ──────────────────────────────────────────────────────────────
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.action === "syncNow") {
-    syncRules().then(() => sendResponse({ ok: true })).catch(() => sendResponse({ ok: false }));
+    syncRules()
+      .then(() => sendResponse({ ok: true }))
+      .catch(() => sendResponse({ ok: false }));
     return true;
   }
   if (msg.action === "flushNow") {
-    flushLogs().then(() => sendResponse({ ok: true })).catch(() => sendResponse({ ok: false }));
+    flushLogs()
+      .then(() => sendResponse({ ok: true }))
+      .catch(() => sendResponse({ ok: false }));
     return true;
   }
   if (msg.action === "setEnabled") {

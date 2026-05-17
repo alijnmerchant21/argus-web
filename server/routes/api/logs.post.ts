@@ -1,15 +1,24 @@
-import { defineEventHandler, setResponseHeaders, readBody, createError, getRequestHeader } from "h3";
+import {
+  defineEventHandler,
+  setResponseHeaders,
+  readBody,
+  createError,
+  getRequestHeader,
+} from "h3";
 import { z } from "zod";
 import { requireApiKey, getDb, corsHeaders } from "../../utils/api";
 
 const logEntrySchema = z.object({
-  rule_id:     z.string().min(1),
-  rule_title:  z.string().default(""),
-  action:      z.enum(["block", "warn", "flag"]),
-  matched_kw:  z.string().default(""),
-  platform:    z.string().default(""),
+  rule_id: z
+    .string()
+    .min(1)
+    .transform((s) => s.trim()),
+  rule_title: z.string().default(""),
+  action: z.enum(["block", "warn", "flag"]),
+  matched_kw: z.string().default(""),
+  platform: z.string().default(""),
   prompt_text: z.string().max(20000).default(""),
-  created_at:  z.number().int().positive(),
+  created_at: z.number().int().positive(),
 });
 
 const bodySchema = z.object({
@@ -19,9 +28,9 @@ const bodySchema = z.object({
 export default defineEventHandler(async (event) => {
   setResponseHeaders(event, corsHeaders());
 
-  const apiKey  = (getRequestHeader(event, "authorization") ?? "").replace(/^Bearer\s+/i, "").trim();
+  const apiKey = (getRequestHeader(event, "authorization") ?? "").replace(/^Bearer\s+/i, "").trim();
   const username = await requireApiKey(event);
-  const sql      = getDb();
+  const sql = getDb();
 
   let parsed: z.infer<typeof bodySchema>;
   try {
@@ -34,9 +43,9 @@ export default defineEventHandler(async (event) => {
   // Verify all rule_ids belong to this user (security: prevent log injection for other users' rules)
   const ids = [...new Set(parsed.logs.map((l) => l.rule_id))];
   const owned = await sql`
-    SELECT id FROM rules WHERE id = ANY(${ids}) AND user_id = ${username}
+    SELECT id FROM rules WHERE user_id = ${username} AND id = ANY(${ids}::text[])
   `;
-  const ownedIds = new Set((owned as { id: string }[]).map((r) => r.id));
+  const ownedIds = new Set((owned as { id: string }[]).map((r) => String(r.id).trim()));
 
   let accepted = 0;
   for (const entry of parsed.logs) {
