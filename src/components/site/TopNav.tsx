@@ -1,12 +1,10 @@
-import { Link, useRouter } from "@tanstack/react-router";
-import { logoutFn, type SessionUser } from "@/lib/auth";
+import { Link, useRouter, useRouterState } from "@tanstack/react-router";
+import { logoutFn } from "@/lib/auth";
 
-type TopNavProps = {
-  session: SessionUser | null;
-};
-
-export function TopNav({ session }: TopNavProps) {
-  const router = useRouter();
+export function TopNav() {
+  const router        = useRouter();
+  const pathname      = useRouterState({ select: (s) => s.location.pathname });
+  const isDashboard   = pathname.startsWith("/dashboard");
 
   const handleLogout = async () => {
     await logoutFn();
@@ -30,7 +28,7 @@ export function TopNav({ session }: TopNavProps) {
               height={42}
             />
           </Link>
-          {!session && (
+          {!isDashboard && (
             <Link to="/how-it-works" className="text-sm font-medium text-muted-foreground transition-colors hover:text-foreground">
               How it works
             </Link>
@@ -38,7 +36,7 @@ export function TopNav({ session }: TopNavProps) {
         </div>
 
         <div className="flex shrink-0 items-center gap-2 sm:gap-3">
-          {session ? (
+          {isDashboard ? (
             <button
               type="button"
               onClick={handleLogout}
@@ -48,10 +46,10 @@ export function TopNav({ session }: TopNavProps) {
             </button>
           ) : (
             <Link
-              to="/login"
-              className="inline-flex h-10 shrink-0 items-center rounded-full border border-border bg-background px-4 text-sm font-semibold shadow-sm transition-colors hover:bg-secondary sm:h-11 sm:px-5"
+              to="/dashboard"
+              className="inline-flex h-10 shrink-0 items-center rounded-full bg-foreground px-4 text-sm font-semibold text-background transition-colors hover:bg-foreground/90 sm:h-11 sm:px-5"
             >
-              Login
+              Dashboard
             </Link>
           )}
         </div>

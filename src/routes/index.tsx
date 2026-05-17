@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, Play } from "lucide-react";
+import { ArrowRight, LayoutDashboard, Play } from "lucide-react";
 import { ExpertCard } from "@/components/site/ExpertCard";
 import { WaitlistDialog } from "@/components/site/WaitlistDialog";
 
@@ -61,6 +61,16 @@ function Index() {
               onClick={() => setWaitlistOpen(true)}
             >
               Join Waitlist <ArrowRight className="h-4 w-4" />
+            </Button>
+            <Button
+              asChild
+              size="lg"
+              variant="secondary"
+              className="fun-btn h-12 rounded-full border border-border bg-secondary/80 px-6 text-sm font-semibold shadow-sm hover:bg-secondary"
+            >
+              <Link to="/dashboard">
+                Dashboard <LayoutDashboard className="h-4 w-4" />
+              </Link>
             </Button>
           </div>
           <WaitlistDialog open={waitlistOpen} onOpenChange={setWaitlistOpen} />

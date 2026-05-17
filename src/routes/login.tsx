@@ -34,7 +34,9 @@ function LoginPage() {
       if (result.error) {
         setError(result.error);
       } else {
-        await router.navigate({ to: "/dashboard" });
+        // Refetch route loaders so root session + nav reflect the new cookie (no full refresh needed)
+        await router.invalidate();
+        await router.navigate({ to: "/dashboard", replace: true });
       }
     } catch {
       setError("Something went wrong. Please try again.");

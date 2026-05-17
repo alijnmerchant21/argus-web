@@ -11,7 +11,6 @@ import {
 import appCss from "../styles.css?url";
 import { TopNav } from "@/components/site/TopNav";
 import { Footer } from "@/components/site/Footer";
-import { getSessionFn } from "@/lib/auth";
 
 function NotFoundComponent() {
   return (
@@ -54,10 +53,6 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
 }
 
 export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
-  loader: async () => {
-    const session = await getSessionFn();
-    return { session };
-  },
   head: () => ({
     meta: [
       { charSet: "utf-8" },
@@ -99,11 +94,10 @@ function RootShell({ children }: { children: React.ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
-  const { session } = Route.useLoaderData();
   return (
     <QueryClientProvider client={queryClient}>
       <div className="min-h-screen bg-background">
-        <TopNav session={session} />
+        <TopNav />
         <Outlet />
         <Footer />
       </div>
