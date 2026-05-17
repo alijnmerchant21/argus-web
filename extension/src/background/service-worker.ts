@@ -1,5 +1,16 @@
 import { storage } from "../shared/storage";
 
+/** Main world reads bootstrap from DOM; inject into the frame that set it (subframes matter on ChatGPT). */
+async function injectArgusMainWorld(tabId: number, frameId: number | undefined): Promise<void> {
+  const target: chrome.scripting.InjectionTarget =
+    frameId != null ? { tabId, frameIds: [frameId] } : { tabId };
+  await chrome.scripting.executeScript({
+    target,
+    world: "MAIN",
+    files: ["argus-main-world.js"],
+  });
+}
+
 const SYNC_ALARM  = "argus-sync";
 const FLUSH_ALARM = "argus-flush";
 const SYNC_EVERY  = 15;  // minutes
@@ -69,7 +80,10 @@ async function syncRules(): Promise<void> {
   try {
     const res = await fetch(url.toString(), { headers });
     if (res.status === 304) return;
-    if (!res.ok) return;
+    if (!res.ok) {
+      console.warn("[Argus] syncRules HTTP", res.status, await res.text().catch(() => ""));
+      return;
+    }
     const rules = await res.json();
     await storage.setRules(rules);
     broadcastRulesUpdated();
@@ -101,7 +115,7 @@ async function flushLogs(): Promise<void> {
 }
 
 // ── Message bus ──────────────────────────────────────────────────────────────
-chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.action === "syncNow") {
     syncRules().then(() => sendResponse({ ok: true })).catch(() => sendResponse({ ok: false }));
     return true;
@@ -126,8 +140,23 @@ chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg.action === "queueLog") {
     storage
       .queueLog(msg.entry)
+      .then(() => flushLogs())
       .then(() => sendResponse({ ok: true }))
       .catch(() => sendResponse({ ok: false }));
+    return true;
+  }
+  if (msg.action === "injectMainWorld") {
+    const tabId = sender.tab?.id;
+    if (tabId === undefined) {
+      sendResponse({ ok: false, error: "no-tab" });
+      return false;
+    }
+    injectArgusMainWorld(tabId, sender.frameId)
+      .then(() => sendResponse({ ok: true }))
+      .catch((e) => {
+        console.warn("[Argus] injectMainWorld failed", e);
+        sendResponse({ ok: false, error: String(e) });
+      });
     return true;
   }
 });

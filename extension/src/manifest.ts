@@ -6,17 +6,10 @@ export default defineManifest({
   version: "2.0.0",
   description: "Enforce your custom AI guardrails on ChatGPT, Claude, and Gemini.",
 
-  permissions: ["storage", "activeTab", "alarms"],
+  permissions: ["storage", "activeTab", "alarms", "scripting"],
 
-  host_permissions: [
-    "http://localhost:3000/*",
-    "http://127.0.0.1:3000/*",
-    "http://localhost:5173/*",
-    "https://chatgpt.com/*",
-    "https://chat.openai.com/*",
-    "https://claude.ai/*",
-    "https://gemini.google.com/*",
-  ],
+  /** Broad injection; actual “is this AI?” is decided in main-world aiDetection.ts */
+  host_permissions: ["<all_urls>"],
 
   background: {
     service_worker: "src/background/service-worker.ts",
@@ -25,14 +18,10 @@ export default defineManifest({
 
   content_scripts: [
     {
-      matches: [
-        "https://chatgpt.com/*",
-        "https://chat.openai.com/*",
-        "https://claude.ai/*",
-        "https://gemini.google.com/*",
-      ],
+      matches: ["<all_urls>"],
       js: ["src/content/index.ts"],
       run_at: "document_start",
+      all_frames: true,
     },
   ],
 
@@ -53,7 +42,13 @@ export default defineManifest({
 
   web_accessible_resources: [
     {
-      resources: ["icons/*", "config.json", "rules.json", "argus-logo.png"],
+      resources: [
+        "icons/*",
+        "config.json",
+        "rules.json",
+        "argus-logo.png",
+        "argus-main-world.js",
+      ],
       matches: ["<all_urls>"],
     },
   ],

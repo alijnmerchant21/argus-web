@@ -6,16 +6,11 @@
   "permissions": [
     "storage",
     "activeTab",
-    "alarms"
+    "alarms",
+    "scripting"
   ],
   "host_permissions": [
-    "http://localhost:3000/*",
-    "http://127.0.0.1:3000/*",
-    "http://localhost:5173/*",
-    "https://chatgpt.com/*",
-    "https://chat.openai.com/*",
-    "https://claude.ai/*",
-    "https://gemini.google.com/*"
+    "<all_urls>"
   ],
   "background": {
     "service_worker": "service-worker-loader.js",
@@ -24,15 +19,13 @@
   "content_scripts": [
     {
       "js": [
-        "assets/index.ts-kNgdg__h.js"
+        "assets/index.ts-Km55ZLje.js"
       ],
       "matches": [
-        "https://chatgpt.com/*",
-        "https://chat.openai.com/*",
-        "https://claude.ai/*",
-        "https://gemini.google.com/*"
+        "<all_urls>"
       ],
-      "run_at": "document_start"
+      "run_at": "document_start",
+      "all_frames": true
     }
   ],
   "action": {
@@ -57,19 +50,9 @@
         "icons/*",
         "config.json",
         "rules.json",
-        "argus-logo.png"
-      ],
-      "use_dynamic_url": false
-    },
-    {
-      "matches": [
-        "https://chat.openai.com/*",
-        "https://chatgpt.com/*",
-        "https://claude.ai/*",
-        "https://gemini.google.com/*"
-      ],
-      "resources": [
-        "assets/index.ts-kNgdg__h.js"
+        "argus-logo.png",
+        "argus-main-world.js",
+        "assets/index.ts-Km55ZLje.js"
       ],
       "use_dynamic_url": false
     }

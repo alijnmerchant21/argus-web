@@ -3,6 +3,7 @@ import { crx } from "@crxjs/vite-plugin";
 import manifest from "./src/manifest";
 
 export default defineConfig({
+  base: "./",
   plugins: [crx({ manifest })],
   build: {
     outDir: "dist",
