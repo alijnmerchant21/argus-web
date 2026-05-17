@@ -2,9 +2,9 @@ import { createServerFn } from "@tanstack/react-start";
 import { useSession } from "@tanstack/react-start/server";
 import { neon } from "@neondatabase/serverless";
 import JSZip from "jszip";
-import { readFileSync, existsSync, readdirSync, statSync } from "fs";
-import { resolve, relative, join } from "path";
 import { z } from "zod";
+
+import extensionZipAssets from "./extension-zip-assets.generated.json";
 
 function getDb() {
   const url = process.env["DATABASE_URL"];
@@ -131,61 +131,25 @@ export const generateExtensionFn = createServerFn({ method: "POST" })
     "2. Open Chrome → go to chrome://extensions",
     "3. Enable 'Developer mode' (top right toggle)",
     "4. Click 'Load unpacked'",
-    "5. Select the unzipped folder",
+    "5. Select the folder that contains manifest.json (open the unzipped folder — Chrome needs the directory with manifest.json at the top level, not its parent).",
     "6. Argus is now active on ChatGPT, Claude, and Gemini",
     "",
     "Your rules sync automatically from the Argus dashboard.",
     `Dashboard: ${dashboardUrl}`,
     "",
-    "NOTE: The pre-built extension files (background/service-worker.js,",
-    "content/index.js, popup/) must be present in this folder.",
-    "If they are missing, the extension agent has not yet delivered the",
-    "compiled files. Contact your administrator.",
+    "NOTE: Re-download from the dashboard after changing rules or API key.",
   ].join("\n"));
 
-  // Try to bundle real compiled extension files; fall back to placeholders
-  const extensionBase = resolve(process.cwd(), "public/extension-base");
-  const hasCompiledFiles = existsSync(extensionBase);
-
-  if (hasCompiledFiles) {
-    // Recursively add all files from extension-base/ into the zip
-    function addDir(dir: string, zipFolder: JSZip): void {
-      for (const entry of readdirSync(dir)) {
-        const full = join(dir, entry);
-        const rel  = relative(extensionBase, full);
-        if (statSync(full).isDirectory()) {
-          addDir(full, zipFolder);
-        } else {
-          // Skip the stub config/rules — we inject personalised versions above
-          if (rel === "config.json" || rel === "rules.json") continue;
-          zipFolder.file(rel, readFileSync(full));
-        }
-      }
-    }
-    addDir(extensionBase, zip);
-  } else {
-    // Placeholders so the zip is still valid (user sees a helpful error)
-    zip.folder("background");
-    zip.folder("content");
-    zip.folder("popup");
-    zip.folder("icons");
-
-    zip.file("background/service-worker.js", [
-      "// PLACEHOLDER — run `npm run ext:build:copy` to replace with real files",
-      "console.warn('[Argus] Extension not yet compiled. See README.txt');",
-    ].join("\n"));
-
-    zip.file("content/index.js", [
-      "// PLACEHOLDER — run `npm run ext:build:copy` to replace with real files",
-      "console.warn('[Argus] Extension not yet compiled. See README.txt');",
-    ].join("\n"));
-
-    zip.file("popup/index.html", `<!DOCTYPE html>
-<html><head><meta charset="UTF-8"><title>Argus</title></head>
-<body style="width:320px;padding:20px;font-family:system-ui,sans-serif">
-  <h2>🛡️ Argus</h2>
-  <p>Extension not yet compiled. Run <code>npm run ext:build:copy</code>.</p>
-</body></html>`);
+  // Pre-built extension files (embedded at app build time — works on Vercel serverless)
+  const assets = extensionZipAssets as Record<string, string>;
+  if (!assets["manifest.json"]) {
+    throw new Error(
+      "Extension bundle is missing manifest — run npm run ext:build:copy before building the app.",
+    );
+  }
+  for (const [rel, b64] of Object.entries(assets)) {
+    if (rel === "config.json" || rel === "rules.json") continue;
+    zip.file(rel, Buffer.from(b64, "base64"), { binary: true });
   }
 
   // Generate zip as base64

@@ -281,7 +281,7 @@ const INSTALL_STEPS = [
   { icon: "📥", title: "Unzip the file", body: "Find the downloaded .zip and extract it to a folder you'll keep (e.g. Documents/argus-extension)." },
   { icon: "🌐", title: "Open Chrome extensions", body: "In Chrome, go to chrome://extensions — you can also reach it via ⋮ → Extensions → Manage extensions." },
   { icon: "🔧", title: "Enable Developer mode", body: 'Toggle "Developer mode" on (top-right of the extensions page). This lets you load local extensions.' },
-  { icon: "📂", title: "Load the extension", body: 'Click "Load unpacked", then select the folder you unzipped in step 1.' },
+  { icon: "📂", title: "Load the extension", body: 'Click "Load unpacked", then choose the folder that directly contains manifest.json (if you see README.txt next to manifest.json in Finder/Explorer, pick that folder — not the parent Downloads folder).' },
   { icon: "✅", title: "You're live", body: "The Argus shield icon appears in your toolbar. Open ChatGPT, Claude, or Gemini — your rules are active immediately." },
   { icon: "🔄", title: "Rules stay in sync", body: "Your rules sync automatically from the dashboard every 15 minutes. No reinstall needed when you change rules." },
 ];
