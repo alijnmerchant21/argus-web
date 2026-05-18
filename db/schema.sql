@@ -11,6 +11,7 @@ CREATE TABLE IF NOT EXISTS rules (
   title       TEXT    NOT NULL,
   action      TEXT    NOT NULL DEFAULT 'block',     -- block | warn | flag
   keywords    TEXT    NOT NULL DEFAULT '[]',         -- JSON string[]
+  keyword_actions TEXT NOT NULL DEFAULT '{}',        -- JSON Record<keyword, block | warn | flag>
   body        TEXT    NOT NULL DEFAULT '',           -- message shown to user
   severity    TEXT    NOT NULL DEFAULT 'medium',     -- low | medium | high
   platforms   TEXT    NOT NULL DEFAULT '["chatgpt","claude"]', -- JSON string[]
@@ -53,3 +54,20 @@ CREATE TABLE IF NOT EXISTS logs (
 CREATE INDEX IF NOT EXISTS logs_api_key_idx    ON logs(api_key);
 CREATE INDEX IF NOT EXISTS logs_rule_id_idx    ON logs(rule_id);
 CREATE INDEX IF NOT EXISTS logs_created_at_idx ON logs(created_at DESC);
+
+-- ── ai_interactions ──────────────────────────────────────────────────────────
+-- Complete AI activity audit trail, separate from rule violation logs.
+
+CREATE TABLE IF NOT EXISTS ai_interactions (
+  id         TEXT   PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  api_key    TEXT   NOT NULL,
+  user_id    TEXT   NOT NULL,
+  side       TEXT   NOT NULL,             -- input | output
+  platform   TEXT   NOT NULL DEFAULT '',
+  url        TEXT   NOT NULL DEFAULT '',
+  content    TEXT   NOT NULL DEFAULT '',
+  created_at BIGINT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS ai_interactions_user_created_idx
+  ON ai_interactions(user_id, created_at DESC);

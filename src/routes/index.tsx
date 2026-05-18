@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { Button } from "@/components/ui/button";
-import { ArrowRight, LayoutDashboard, Play } from "lucide-react";
+import { ArrowRight, Play } from "lucide-react";
 import { ExpertCard } from "@/components/site/ExpertCard";
 import { WaitlistDialog } from "@/components/site/WaitlistDialog";
 
@@ -11,7 +11,8 @@ export const Route = createFileRoute("/")({
       { title: "Argus — Define the line AI cannot cross" },
       {
         name: "description",
-        content: "Argus lets domain experts define rules that AI must not cross. Install, define, guard.",
+        content:
+          "Argus lets domain experts define rules that AI must not cross. Install, define, guard.",
       },
     ],
   }),
@@ -24,7 +25,6 @@ function Index() {
   return (
     <main className="mx-auto mt-6 w-[min(1200px,calc(100%-2rem))] pb-16 sm:mt-10 lg:mt-14">
       <div className="grid gap-12 lg:grid-cols-2 lg:items-start lg:gap-16">
-
         {/* ── Left: hero copy ── */}
         <section className="flex flex-col justify-center">
           <h1
@@ -37,8 +37,8 @@ function Index() {
             className="animate-fade-up mt-5 max-w-md text-base leading-relaxed text-muted-foreground sm:text-lg"
             style={{ animationDelay: "80ms" }}
           >
-            Argus lets you define a line that AI cannot cross.
-            Install Argus; Define your rules and let Argus Guard you.
+            Argus lets you define a line that AI cannot cross. Install Argus; Define your rules and
+            let Argus Guard you.
           </p>
           <div
             className="animate-fade-up mt-7 flex flex-wrap items-center gap-3"
@@ -61,16 +61,6 @@ function Index() {
               onClick={() => setWaitlistOpen(true)}
             >
               Join Waitlist <ArrowRight className="h-4 w-4" />
-            </Button>
-            <Button
-              asChild
-              size="lg"
-              variant="secondary"
-              className="fun-btn h-12 rounded-full border border-border bg-secondary/80 px-6 text-sm font-semibold shadow-sm hover:bg-secondary"
-            >
-              <Link to="/dashboard">
-                Dashboard <LayoutDashboard className="h-4 w-4" />
-              </Link>
             </Button>
           </div>
           <WaitlistDialog open={waitlistOpen} onOpenChange={setWaitlistOpen} />
@@ -96,10 +86,7 @@ function Index() {
         </section>
 
         {/* ── Right: irregular bento expert grid ── */}
-        <section
-          className="animate-fade-up"
-          style={{ animationDelay: "200ms" }}
-        >
+        <section className="animate-fade-up" style={{ animationDelay: "200ms" }}>
           {/*
             6-col grid, 3 row heights.
             Row 1+2: Doctors (col 1-4)  |  Lawyers (col 5-6, row 1) / Policy Makers (col 5-6, row 2)

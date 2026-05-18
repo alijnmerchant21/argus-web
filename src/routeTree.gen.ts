@@ -14,6 +14,10 @@ import { Route as HowItWorksRouteImport } from './routes/how-it-works'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ReportRuleIdRouteImport } from './routes/report.$ruleId'
+import { Route as ApiRulesRouteImport } from './routes/api/rules'
+import { Route as ApiLogsRouteImport } from './routes/api/logs'
+import { Route as ApiInteractionsRouteImport } from './routes/api/interactions'
+import { Route as AiLogRuleIdRouteImport } from './routes/ai-log.$ruleId'
 
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
@@ -40,12 +44,36 @@ const ReportRuleIdRoute = ReportRuleIdRouteImport.update({
   path: '/report/$ruleId',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiRulesRoute = ApiRulesRouteImport.update({
+  id: '/api/rules',
+  path: '/api/rules',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiLogsRoute = ApiLogsRouteImport.update({
+  id: '/api/logs',
+  path: '/api/logs',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiInteractionsRoute = ApiInteractionsRouteImport.update({
+  id: '/api/interactions',
+  path: '/api/interactions',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AiLogRuleIdRoute = AiLogRuleIdRouteImport.update({
+  id: '/ai-log/$ruleId',
+  path: '/ai-log/$ruleId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
   '/how-it-works': typeof HowItWorksRoute
   '/login': typeof LoginRoute
+  '/ai-log/$ruleId': typeof AiLogRuleIdRoute
+  '/api/interactions': typeof ApiInteractionsRoute
+  '/api/logs': typeof ApiLogsRoute
+  '/api/rules': typeof ApiRulesRoute
   '/report/$ruleId': typeof ReportRuleIdRoute
 }
 export interface FileRoutesByTo {
@@ -53,6 +81,10 @@ export interface FileRoutesByTo {
   '/dashboard': typeof DashboardRoute
   '/how-it-works': typeof HowItWorksRoute
   '/login': typeof LoginRoute
+  '/ai-log/$ruleId': typeof AiLogRuleIdRoute
+  '/api/interactions': typeof ApiInteractionsRoute
+  '/api/logs': typeof ApiLogsRoute
+  '/api/rules': typeof ApiRulesRoute
   '/report/$ruleId': typeof ReportRuleIdRoute
 }
 export interface FileRoutesById {
@@ -61,19 +93,45 @@ export interface FileRoutesById {
   '/dashboard': typeof DashboardRoute
   '/how-it-works': typeof HowItWorksRoute
   '/login': typeof LoginRoute
+  '/ai-log/$ruleId': typeof AiLogRuleIdRoute
+  '/api/interactions': typeof ApiInteractionsRoute
+  '/api/logs': typeof ApiLogsRoute
+  '/api/rules': typeof ApiRulesRoute
   '/report/$ruleId': typeof ReportRuleIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/dashboard' | '/how-it-works' | '/login' | '/report/$ruleId'
+  fullPaths:
+    | '/'
+    | '/dashboard'
+    | '/how-it-works'
+    | '/login'
+    | '/ai-log/$ruleId'
+    | '/api/interactions'
+    | '/api/logs'
+    | '/api/rules'
+    | '/report/$ruleId'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/dashboard' | '/how-it-works' | '/login' | '/report/$ruleId'
+  to:
+    | '/'
+    | '/dashboard'
+    | '/how-it-works'
+    | '/login'
+    | '/ai-log/$ruleId'
+    | '/api/interactions'
+    | '/api/logs'
+    | '/api/rules'
+    | '/report/$ruleId'
   id:
     | '__root__'
     | '/'
     | '/dashboard'
     | '/how-it-works'
     | '/login'
+    | '/ai-log/$ruleId'
+    | '/api/interactions'
+    | '/api/logs'
+    | '/api/rules'
     | '/report/$ruleId'
   fileRoutesById: FileRoutesById
 }
@@ -82,6 +140,10 @@ export interface RootRouteChildren {
   DashboardRoute: typeof DashboardRoute
   HowItWorksRoute: typeof HowItWorksRoute
   LoginRoute: typeof LoginRoute
+  AiLogRuleIdRoute: typeof AiLogRuleIdRoute
+  ApiInteractionsRoute: typeof ApiInteractionsRoute
+  ApiLogsRoute: typeof ApiLogsRoute
+  ApiRulesRoute: typeof ApiRulesRoute
   ReportRuleIdRoute: typeof ReportRuleIdRoute
 }
 
@@ -122,6 +184,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ReportRuleIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/rules': {
+      id: '/api/rules'
+      path: '/api/rules'
+      fullPath: '/api/rules'
+      preLoaderRoute: typeof ApiRulesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/logs': {
+      id: '/api/logs'
+      path: '/api/logs'
+      fullPath: '/api/logs'
+      preLoaderRoute: typeof ApiLogsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/interactions': {
+      id: '/api/interactions'
+      path: '/api/interactions'
+      fullPath: '/api/interactions'
+      preLoaderRoute: typeof ApiInteractionsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ai-log/$ruleId': {
+      id: '/ai-log/$ruleId'
+      path: '/ai-log/$ruleId'
+      fullPath: '/ai-log/$ruleId'
+      preLoaderRoute: typeof AiLogRuleIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -130,6 +220,10 @@ const rootRouteChildren: RootRouteChildren = {
   DashboardRoute: DashboardRoute,
   HowItWorksRoute: HowItWorksRoute,
   LoginRoute: LoginRoute,
+  AiLogRuleIdRoute: AiLogRuleIdRoute,
+  ApiInteractionsRoute: ApiInteractionsRoute,
+  ApiLogsRoute: ApiLogsRoute,
+  ApiRulesRoute: ApiRulesRoute,
   ReportRuleIdRoute: ReportRuleIdRoute,
 }
 export const routeTree = rootRouteImport
