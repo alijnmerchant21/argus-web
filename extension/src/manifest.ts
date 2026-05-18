@@ -8,7 +8,7 @@ export default defineManifest({
 
   permissions: ["storage", "activeTab", "alarms", "scripting"],
 
-  /** Broad injection; actual “is this AI?” is decided in main-world aiDetection.ts */
+  /** Broad injection; shared AI awareness decides whether a page/request is relevant. */
   host_permissions: ["<all_urls>"],
 
   background: {
@@ -26,29 +26,24 @@ export default defineManifest({
   ],
 
   action: {
+    default_title: "Argus Guardrails",
     default_popup: "src/popup/index.html",
     default_icon: {
-      "16":  "icons/icon-16.png",
-      "48":  "icons/icon-48.png",
+      "16": "icons/icon-16.png",
+      "48": "icons/icon-48.png",
       "128": "icons/icon-128.png",
     },
   },
 
   icons: {
-    "16":  "icons/icon-16.png",
-    "48":  "icons/icon-48.png",
+    "16": "icons/icon-16.png",
+    "48": "icons/icon-48.png",
     "128": "icons/icon-128.png",
   },
 
   web_accessible_resources: [
     {
-      resources: [
-        "icons/*",
-        "config.json",
-        "rules.json",
-        "argus-logo.png",
-        "argus-main-world.js",
-      ],
+      resources: ["icons/*", "config.json", "rules.json", "argus-logo.png", "argus-main-world.js"],
       matches: ["<all_urls>"],
     },
   ],

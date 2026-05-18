@@ -51,17 +51,19 @@ async function loadAndInject(): Promise<void> {
     console.warn("[Argus] injectMainWorld:", lastErr);
   }
 
-  window.postMessage(
-    { source: "argus-isolated", type: "sync", payload: { rules, enabled } },
-    "*",
-  );
+  window.postMessage({ source: "argus-isolated", type: "sync", payload: { rules, enabled } }, "*");
 }
 
 window.addEventListener("message", (ev) => {
   if (ev.source !== window) return;
   const d = ev.data;
-  if (!d || d.source !== "argus-main" || d.type !== "argus-log") return;
-  chrome.runtime.sendMessage({ action: "queueLog", entry: d.entry });
+  if (!d || d.source !== "argus-main") return;
+  if (d.type === "argus-log") {
+    chrome.runtime.sendMessage({ action: "queueLog", entry: d.entry });
+  }
+  if (d.type === "argus-interaction") {
+    chrome.runtime.sendMessage({ action: "queueInteraction", entry: d.entry });
+  }
 });
 
 chrome.runtime.onMessage.addListener((msg) => {

@@ -1,4 +1,4 @@
-import type { Rule, LogEntry, ArgusConfig } from "./types";
+import type { Rule, LogEntry, ArgusConfig, InteractionEntry } from "./types";
 
 const KEYS = {
   rules: "argus_rules",
@@ -8,6 +8,7 @@ const KEYS = {
   scopedRuleIds: "argus_scoped_rule_ids",
   enabled: "argus_enabled",
   logQueue: "argus_log_queue",
+  interactionQueue: "argus_interaction_queue",
 } as const;
 
 export const storage = {
@@ -77,5 +78,21 @@ export const storage = {
     const q = await this.getLogQueue();
     if (q.length > 0) await this.clearLogQueue();
     return q;
+  },
+
+  async queueInteraction(entry: InteractionEntry): Promise<void> {
+    const d = await chrome.storage.local.get(KEYS.interactionQueue);
+    const q: InteractionEntry[] = d[KEYS.interactionQueue] ?? [];
+    q.push(entry);
+    await chrome.storage.local.set({ [KEYS.interactionQueue]: q });
+  },
+
+  async getInteractionQueue(): Promise<InteractionEntry[]> {
+    const d = await chrome.storage.local.get(KEYS.interactionQueue);
+    return d[KEYS.interactionQueue] ?? [];
+  },
+
+  async clearInteractionQueue(): Promise<void> {
+    await chrome.storage.local.set({ [KEYS.interactionQueue]: [] });
   },
 };

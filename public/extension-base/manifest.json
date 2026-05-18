@@ -19,7 +19,7 @@
   "content_scripts": [
     {
       "js": [
-        "assets/index.ts-D6CxKAZO.js"
+        "assets/index.ts-BuPMVTBO.js"
       ],
       "matches": [
         "<all_urls>"
@@ -29,6 +29,7 @@
     }
   ],
   "action": {
+    "default_title": "Argus Guardrails",
     "default_popup": "src/popup/index.html",
     "default_icon": {
       "16": "icons/icon-16.png",
@@ -52,7 +53,7 @@
         "rules.json",
         "argus-logo.png",
         "argus-main-world.js",
-        "assets/index.ts-D6CxKAZO.js"
+        "assets/index.ts-BuPMVTBO.js"
       ],
       "use_dynamic_url": false
     }

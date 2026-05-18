@@ -7,14 +7,15 @@
  * DASHBOARD_URL or VERCEL_URL so the service worker can reach your deployment
  * (not a hard-coded *.vercel.app host).
  */
-import { cpSync, mkdirSync, readFileSync, writeFileSync } from "fs";
+import { cpSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "fs";
 import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const src  = resolve(__dirname, "../dist");
+const src = resolve(__dirname, "../dist");
 const dest = resolve(__dirname, "../../public/extension-base");
 
+rmSync(dest, { recursive: true, force: true });
 mkdirSync(dest, { recursive: true });
 cpSync(src, dest, { recursive: true });
 

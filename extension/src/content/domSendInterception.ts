@@ -5,12 +5,35 @@
 import { evaluateInputRules } from "../shared/ruleEvaluation";
 import { normalizeRulesFromStorage } from "../shared/normalizeRules";
 import type { Rule, RuleAction } from "../shared/types";
+import { identifyAIPlatformForHost, isCurrentPageAISurface } from "../shared/aiAwareness";
 
 const KEYS = { rules: "argus_rules", enabled: "argus_enabled" } as const;
 
 let guardRules: Rule[] = [];
 let guardEnabled = true;
 let bypassOnce = false;
+let transcriptObserverStarted = false;
+const seenTranscript = new Map<string, number>();
+
+function fingerprint(text: string): string {
+  return text.toLowerCase().replace(/\s+/g, " ").trim().slice(0, 500);
+}
+
+function publishDomGuardEvent(rule: Rule, action: RuleAction, prompt: string): void {
+  window.postMessage(
+    {
+      source: "argus-isolated",
+      type: "dom-guard-event",
+      payload: {
+        ruleId: String(rule.id ?? "").trim(),
+        action,
+        promptKey: fingerprint(prompt),
+        until: Date.now() + 12000,
+      },
+    },
+    "*",
+  );
+}
 
 export function setDomGuardState(rules: Rule[], enabled: boolean): void {
   guardRules = normalizeRulesFromStorage(rules);
@@ -18,11 +41,11 @@ export function setDomGuardState(rules: Rule[], enabled: boolean): void {
 }
 
 function platformFromHost(): string {
-  const h = location.hostname;
-  if (h.includes("claude")) return "claude";
-  if (h.includes("gemini")) return "gemini";
-  if (h.includes("openai") || h.includes("chatgpt")) return "chatgpt";
-  return "web";
+  return identifyAIPlatformForHost(location.hostname) ?? "ai";
+}
+
+function shouldRunDomGuard(): boolean {
+  return guardEnabled && guardRules.length > 0 && isCurrentPageAISurface();
 }
 
 function queueDomLog(rule: Rule, action: RuleAction, prompt: string, matchedKw: string): void {
@@ -45,6 +68,108 @@ function queueDomLog(rule: Rule, action: RuleAction, prompt: string, matchedKw: 
       },
     })
     .catch(() => {});
+}
+
+function queueAIInteraction(side: "input" | "output", content: string): void {
+  const text = content.trim();
+  if (!text || text.length < 2) return;
+  void chrome.runtime
+    .sendMessage({
+      action: "queueInteraction",
+      entry: {
+        side,
+        platform: platformFromHost(),
+        url: location.href,
+        content: text.slice(0, 20000),
+        created_at: Date.now(),
+      },
+    })
+    .catch(() => {});
+}
+
+function inferMessageSide(el: Element): "input" | "output" | null {
+  const roleNode = el.closest("[data-message-author-role]");
+  const role = roleNode?.getAttribute("data-message-author-role")?.toLowerCase();
+  if (role === "user") return "input";
+  if (role === "assistant" || role === "model") return "output";
+
+  const label = [
+    el.getAttribute("aria-label"),
+    el.getAttribute("data-testid"),
+    el.className,
+    el.parentElement?.getAttribute("aria-label"),
+    el.parentElement?.className,
+  ]
+    .join(" ")
+    .toLowerCase();
+  if (/\b(user|human|prompt)\b/.test(label)) return "input";
+  if (/\b(assistant|ai|model|response|completion|answer)\b/.test(label)) return "output";
+  return null;
+}
+
+function transcriptText(el: Element): string {
+  const raw = (el as HTMLElement).innerText || el.textContent || "";
+  return raw.replace(/\s+/g, " ").trim();
+}
+
+function scanVisibleTranscript(): void {
+  if (!guardEnabled || !isCurrentPageAISurface()) return;
+  const selectors = [
+    "[data-message-author-role]",
+    "[data-testid*='conversation-turn']",
+    "[data-testid*='message']",
+    "[data-testid*='response']",
+    "[class*='message']",
+    "[class*='Message']",
+    "[class*='response']",
+  ].join(",");
+
+  let candidates: Element[] = [];
+  try {
+    candidates = Array.from(document.querySelectorAll(selectors));
+  } catch {
+    return;
+  }
+
+  const now = Date.now();
+  for (const [key, until] of seenTranscript) {
+    if (until <= now) seenTranscript.delete(key);
+  }
+
+  for (const el of candidates.slice(-80)) {
+    if (!(el instanceof HTMLElement) || !elementLooksUsable(el)) continue;
+    const side = inferMessageSide(el);
+    if (!side) continue;
+    const text = transcriptText(el);
+    if (text.length < 8 || text.length > 20000) continue;
+    const key = `${side}:${fingerprint(text)}`;
+    if ((seenTranscript.get(key) ?? 0) > now) continue;
+    seenTranscript.set(key, now + 10 * 60 * 1000);
+    queueAIInteraction(side, text);
+  }
+}
+
+function startTranscriptObserver(): void {
+  if (transcriptObserverStarted) return;
+  transcriptObserverStarted = true;
+
+  let pending = false;
+  const schedule = () => {
+    if (pending) return;
+    pending = true;
+    window.setTimeout(() => {
+      pending = false;
+      scanVisibleTranscript();
+    }, 1200);
+  };
+
+  new MutationObserver(schedule).observe(document.documentElement, {
+    childList: true,
+    subtree: true,
+    characterData: true,
+  });
+  window.setInterval(scanVisibleTranscript, 8000);
+  schedule();
 }
 
 /** Many modern UIs use flex/grid where offsetParent is null even when visible. */
@@ -211,6 +336,7 @@ function clearDomOverlays(): void {
 }
 
 function showDomBlock(rule: Rule, matchedKw: string, prompt: string): void {
+  publishDomGuardEvent(rule, "block", prompt);
   clearDomOverlays();
   const wrap = document.createElement("div");
   wrap.setAttribute("data-argus-dom-ui", "block");
@@ -226,6 +352,7 @@ function showDomBlock(rule: Rule, matchedKw: string, prompt: string): void {
 }
 
 function showDomWarn(rule: Rule, matchedKw: string, prompt: string): Promise<boolean> {
+  publishDomGuardEvent(rule, "warn", prompt);
   clearDomOverlays();
   return new Promise((resolve) => {
     const wrap = document.createElement("div");
@@ -253,14 +380,15 @@ function showDomWarn(rule: Rule, matchedKw: string, prompt: string): Promise<boo
 }
 
 function showDomFlag(rule: Rule, matchedKw: string, prompt: string): void {
+  publishDomGuardEvent(rule, "flag", prompt);
   clearDomOverlays();
-  const tip = document.createElement("div");
-  tip.setAttribute("data-argus-dom-ui", "flag");
-  tip.style.cssText =
-    "position:fixed;bottom:20px;right:20px;background:#f8fafc;border:1px solid #e2e8f0;border-radius:10px;padding:8px 12px;font-size:12px;color:#64748b;z-index:2147483646;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;";
-  tip.textContent = `Argus logged: ${rule.title}`;
-  document.body.appendChild(tip);
-  setTimeout(() => tip.remove(), 4000);
+  const wrap = document.createElement("div");
+  wrap.setAttribute("data-argus-dom-ui", "flag");
+  wrap.style.cssText =
+    "position:fixed;right:20px;bottom:20px;display:flex;align-items:center;gap:8px;max-width:min(320px,calc(100vw - 32px));background:#eff6ff;border:1px solid #93c5fd;border-radius:999px;padding:9px 12px;box-shadow:0 8px 24px rgba(15,23,42,.16);z-index:2147483646;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;color:#1d4ed8;font-size:12px;font-weight:650;";
+  wrap.innerHTML = `<span aria-hidden="true" style="display:grid;place-items:center;width:22px;height:22px;border-radius:999px;background:#dbeafe;color:#1d4ed8">⚑</span><span>Argus flagged <strong>${esc(rule.title)}</strong>${matchedKw ? ` · ${esc(matchedKw)}` : ""}</span>`;
+  document.body.appendChild(wrap);
+  window.setTimeout(() => wrap.remove(), 5000);
   queueDomLog(rule, "flag", prompt, matchedKw);
 }
 
@@ -345,7 +473,7 @@ async function handleMatch(
 }
 
 function onKeyDownCapture(ev: KeyboardEvent): void {
-  if (!guardEnabled || guardRules.length === 0) return;
+  if (!shouldRunDomGuard()) return;
   if (bypassOnce) {
     bypassOnce = false;
     return;
@@ -368,7 +496,7 @@ function onKeyDownCapture(ev: KeyboardEvent): void {
 }
 
 function onClickCapture(ev: MouseEvent): void {
-  if (!guardEnabled || guardRules.length === 0) return;
+  if (!shouldRunDomGuard()) return;
   if (bypassOnce) {
     bypassOnce = false;
     return;
@@ -391,7 +519,7 @@ function onClickCapture(ev: MouseEvent): void {
 }
 
 function onSubmitCapture(ev: SubmitEvent): void {
-  if (!guardEnabled || guardRules.length === 0) return;
+  if (!shouldRunDomGuard()) return;
   if (bypassOnce) {
     bypassOnce = false;
     return;
@@ -435,18 +563,16 @@ export function startDomSendInterception(): void {
   domListenersStarted = true;
 
   void chrome.storage.local.get([KEYS.rules, KEYS.enabled]).then((data) => {
-    setDomGuardState(
-      (data[KEYS.rules] as Rule[] | undefined) ?? [],
-      data[KEYS.enabled] !== false,
-    );
+    setDomGuardState((data[KEYS.rules] as Rule[] | undefined) ?? [], data[KEYS.enabled] !== false);
     console.info(
-      `[Argus] DOM guard hydrated — ${guardRules.length} rule(s) — ${location.hostname}`,
+      `[Argus] DOM guard hydrated — ${guardRules.length} rule(s) — ${location.hostname} — ${isCurrentPageAISurface() ? "ai-surface" : "passive"}`,
     );
   });
 
   document.addEventListener("keydown", onKeyDownCapture, true);
   document.addEventListener("click", onClickCapture, true);
   document.addEventListener("submit", onSubmitCapture, true);
+  startTranscriptObserver();
 
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== "local") return;

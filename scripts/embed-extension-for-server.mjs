@@ -25,7 +25,9 @@ function walk(dir, base, acc = {}) {
 try {
   statSync(srcDir);
 } catch {
-  console.error("[embed-extension] Missing public/extension-base — run npm run ext:build:copy first.");
+  console.error(
+    "[embed-extension] Missing public/extension-base — run npm run ext:build:copy first.",
+  );
   process.exit(1);
 }
 
@@ -37,4 +39,6 @@ if (!assets["manifest.json"]) {
 
 mkdirSync(join(root, "src/lib"), { recursive: true });
 writeFileSync(outFile, JSON.stringify(assets));
-console.log(`[embed-extension] Wrote ${Object.keys(assets).length} files → src/lib/extension-zip-assets.generated.json`);
+console.log(
+  `[embed-extension] Wrote ${Object.keys(assets).length} files → src/lib/extension-zip-assets.generated.json`,
+);
